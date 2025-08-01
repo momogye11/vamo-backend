@@ -130,7 +130,7 @@ router.post('/search', async (req, res) => {
                 SELECT id_chauffeur, nom, prenom 
                 FROM Chauffeur 
                 WHERE disponibilite = true 
-                AND statut_approbation = 'approuve'
+                AND statut_validation = 'approuve'
             `);
             
             console.log(`📊 Found ${availableDrivers.rowCount} available drivers to notify`);
