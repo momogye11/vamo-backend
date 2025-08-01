@@ -92,10 +92,12 @@ router.get('/available/:driverId', async (req, res) => {
         });
 
     } catch (err) {
-        console.error("❌ Error fetching available trips:", err);
+        console.error("❌ Error fetching available trips for driver", driverId, ":", err);
+        console.error("❌ Stack trace:", err.stack);
         res.status(500).json({
             success: false,
-            error: 'Erreur serveur'
+            error: 'Erreur serveur',
+            details: err.message
         });
     }
 });
