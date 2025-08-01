@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const app = express();
-
+const db = require('./db');
 
 require('dotenv').config();
 
@@ -234,4 +234,33 @@ process.on('SIGINT', () => {
         console.log('✅ Process terminated');
         process.exit(0);
     });
+});
+
+// Initialize database tables
+async function initializeDatabase() {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const schemaPath = path.join(__dirname, 'db', 'schema.sql');
+    
+    if (fs.existsSync(schemaPath)) {
+      const schema = fs.readFileSync(schemaPath, 'utf8');
+      await db.query(schema);
+      console.log('✅ Database tables initialized successfully');
+    } else {
+      console.log('⚠️ Schema file not found, skipping database initialization');
+    }
+  } catch (error) {
+    console.error('❌ Error initializing database:', error.message);
+    // Don't crash the server if schema creation fails
+  }
+}
+
+// Start server and initialize database
+const PORT = process.env.PORT || 5002;
+app.listen(PORT, '0.0.0.0', async () => {
+  console.log(`✅ Serveur en ligne sur http://0.0.0.0:${PORT}`);
+  
+  // Initialize database after server starts
+  await initializeDatabase();
 });

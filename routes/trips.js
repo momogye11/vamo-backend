@@ -222,7 +222,7 @@ router.post('/accept', async (req, res) => {
 
 // Update trip status (arrived at pickup, started trip, completed trip)
 router.post('/status', async (req, res) => {
-    const { driverId, tripId, status, location } = req.body;
+    const { driverId, tripId, status } = req.body;
 
     if (!driverId || !tripId || !status) {
         return res.status(400).json({
