@@ -6,8 +6,12 @@ const db = require('../db');
 router.post('/verify-otp', async (req, res) => {
     const { phone, code } = req.body;
 
+    // Nettoyer le numéro de téléphone (enlever les espaces)
+    const cleanPhone = phone.replace(/\s+/g, '');
+
     console.log("🔍 Tentative de vérification OTP:");
     console.log("  📱 Téléphone reçu:", phone);
+    console.log("  📱 Téléphone nettoyé:", cleanPhone);
     console.log("  🔢 Code reçu:", code);
 
     if (!phone || !code) {
@@ -25,18 +29,18 @@ router.post('/verify-otp', async (req, res) => {
             console.log(`  📱 ${row.phone} -> 🔢 ${row.code} (expire: ${row.expires_at})`);
         });
 
-        // Vérifie si le code est valide et non expiré
+        // Vérifie si le code est valide et non expiré (utilise le numéro nettoyé)
         const result = await db.query(
             'SELECT * FROM otp_codes WHERE phone = $1 AND code = $2 AND expires_at > NOW()',
-            [phone, code]
+            [cleanPhone, code]
         );
 
-        console.log(`🔍 Recherche pour phone='${phone}' et code='${code}' -> ${result.rowCount} résultat(s)`);
+        console.log(`🔍 Recherche pour phone='${cleanPhone}' et code='${code}' -> ${result.rowCount} résultat(s)`);
 
         if (result.rowCount === 0) {
             // Let's check if the phone exists with any code
-            const phoneCheck = await db.query('SELECT * FROM otp_codes WHERE phone = $1', [phone]);
-            console.log(`📱 Vérification téléphone '${phone}' -> ${phoneCheck.rowCount} entrée(s) trouvée(s)`);
+            const phoneCheck = await db.query('SELECT * FROM otp_codes WHERE phone = $1', [cleanPhone]);
+            console.log(`📱 Vérification téléphone '${cleanPhone}' -> ${phoneCheck.rowCount} entrée(s) trouvée(s)`);
             
             if (phoneCheck.rowCount > 0) {
                 phoneCheck.rows.forEach(row => {
@@ -45,7 +49,7 @@ router.post('/verify-otp', async (req, res) => {
                 });
             }
 
-            console.log("❌ Code incorrect ou expiré pour:", phone);
+            console.log("❌ Code incorrect ou expiré pour:", cleanPhone);
             return res.status(400).json({
                 success: false,
                 error: 'Code incorrect ou expiré'
@@ -53,14 +57,14 @@ router.post('/verify-otp', async (req, res) => {
         }
 
         // Supprime le code utilisé
-        await db.query('DELETE FROM otp_codes WHERE phone = $1', [phone]);
+        await db.query('DELETE FROM otp_codes WHERE phone = $1', [cleanPhone]);
 
-        console.log("✅ OTP vérifié avec succès pour:", phone);
+        console.log("✅ OTP vérifié avec succès pour:", cleanPhone);
 
         res.json({
             success: true,
             message: 'Numéro vérifié avec succès',
-            phone: phone
+            phone: cleanPhone
         });
 
     } catch (err) {
