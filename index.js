@@ -268,7 +268,26 @@ async function initializeDatabase() {
     
     if (fs.existsSync(schemaPath)) {
       const schema = fs.readFileSync(schemaPath, 'utf8');
-      await db.query(schema);
+      
+      // Split schema into individual statements and execute them with error handling
+      const statements = schema
+        .split(';')
+        .map(stmt => stmt.trim())
+        .filter(stmt => stmt.length > 0 && !stmt.startsWith('--'));
+      
+      for (const statement of statements) {
+        try {
+          await db.query(statement);
+        } catch (error) {
+          // Ignore "already exists" errors
+          if (error.message.includes('already exists') || error.message.includes('duplicate key')) {
+            console.log('ℹ️ Table already exists, skipping...');
+          } else {
+            console.error('❌ Error executing statement:', error.message);
+          }
+        }
+      }
+      
       console.log('✅ Database tables initialized successfully');
     } else {
       console.log('⚠️ Schema file not found, skipping database initialization');

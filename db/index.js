@@ -23,7 +23,7 @@ if (process.env.DATABASE_URL) {
 }
 
 // Test database connection on startup
-pool.connect((err, release) => {
+pool.connect((err, client, release) => {
   if (err) {
     console.error('❌ Error connecting to PostgreSQL database:', err);
     console.error('🔧 Database config:', {
@@ -36,7 +36,9 @@ pool.connect((err, release) => {
     });
   } else {
     console.log('✅ PostgreSQL database connected successfully');
-    release();
+    if (release) {
+      release();
+    }
   }
 });
 
