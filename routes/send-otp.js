@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
-const verifyPhoneNumber = require('../utils/verifyPhone');
+// const verifyPhoneNumber = require('../utils/verifyPhone'); // Removed Numverify dependency
 
 // Initialize Africa's Talking
 const AfricasTalking = require('africastalking');
@@ -61,16 +61,13 @@ router.post('/send-otp', async (req, res) => {
     const expiration = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
 
     try {
-        // Skip phone verification in development mode
-        if (process.env.NODE_ENV !== 'development') {
-            const phoneData = await verifyPhoneNumber(phone);
-            if (!phoneData || !phoneData.valid) {
-                console.log("🚫 Numéro invalide:", phone);
-                return res.status(400).json({
-                    success: false,
-                    error: "Numéro de téléphone invalide"
-                });
-            }
+        // Simple phone format validation (Numverify removed)
+        if (!phone.match(/^\+221[0-9]{8,9}$/)) {
+            console.log("🚫 Format de numéro invalide:", phone);
+            return res.status(400).json({
+                success: false,
+                error: "Format de numéro invalide. Utilisez +221XXXXXXXX"
+            });
         }
 
         // Save OTP to database
