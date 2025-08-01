@@ -6,10 +6,10 @@ const db = require('../db');
 // Get available trips for drivers (simple polling)
 router.get('/available/:driverId', async (req, res) => {
     const { driverId } = req.params;
-    
+
     try {
         console.log(`🚗 Fetching available trips for driver: ${driverId}`);
-        
+
         // Simple query for available trips (no complex queue system)
         const result = await db.query(`
             SELECT 
@@ -38,9 +38,9 @@ router.get('/available/:driverId', async (req, res) => {
             ORDER BY c.date_heure_depart ASC
             LIMIT 1
         `);
-        
+
         console.log(`📊 Found ${result.rowCount} available trips in database`);
-        
+
         // Debug: Log what we found
         if (result.rowCount > 0) {
             console.log('🔍 Available trip details:', {
@@ -60,10 +60,10 @@ router.get('/available/:driverId', async (req, res) => {
         }
 
         const trip = result.rows[0];
-        
+
         // Calculate estimated pickup time based on driver location (mock for now)
         const estimatedPickupTime = 8; // minutes
-        
+
         res.json({
             success: true,
             hasTrip: true,
@@ -105,7 +105,7 @@ router.get('/available/:driverId', async (req, res) => {
 // Accept a trip (simple version without complex attribution)
 router.post('/accept', async (req, res) => {
     const { driverId, tripId } = req.body;
-    
+
     if (!driverId || !tripId) {
         return res.status(400).json({
             success: false,
@@ -115,16 +115,16 @@ router.post('/accept', async (req, res) => {
 
     try {
         console.log(`🚗 Driver ${driverId} accepting trip ${tripId}`);
-        
+
         await db.query('BEGIN');
-        
+
         // Check if trip is still available
         const tripCheck = await db.query(`
             SELECT id_course, etat_course, id_chauffeur 
             FROM Course 
             WHERE id_course = $1 AND etat_course = 'en_attente' AND id_chauffeur IS NULL
         `, [tripId]);
-        
+
         if (tripCheck.rowCount === 0) {
             await db.query('ROLLBACK');
             return res.status(409).json({
@@ -132,17 +132,22 @@ router.post('/accept', async (req, res) => {
                 error: 'Cette course n\'est plus disponible'
             });
         }
-        
-        // Assign trip to driver
+
+        // Assign trip to driver WITHOUT changing their availability status
         const updateResult = await db.query(`
-            UPDATE Course 
-            SET id_chauffeur = $1, 
-                etat_course = 'acceptee',
-                date_heure_depart = CURRENT_TIMESTAMP
-            WHERE id_course = $2 AND etat_course = 'en_attente' AND id_chauffeur IS NULL
-            RETURNING *
-        `, [parseInt(driverId) || 1, tripId]);
-        
+    UPDATE Course 
+    SET id_chauffeur = $1, 
+        etat_course = 'acceptee',
+        date_heure_depart = CURRENT_TIMESTAMP
+    WHERE id_course = $2 AND etat_course = 'en_attente' AND id_chauffeur IS NULL
+    RETURNING *
+`, [parseInt(driverId) || 1, tripId]);
+
+        // IMPORTANT: Do NOT change driver availability here
+        // The driver should remain online and available for new trips
+        console.log(`✅ Trip ${tripId} assigned to driver ${driverId} - Driver remains online`);
+
+
         if (updateResult.rowCount === 0) {
             await db.query('ROLLBACK');
             return res.status(409).json({
@@ -150,30 +155,30 @@ router.post('/accept', async (req, res) => {
                 error: 'Impossible d\'accepter la course'
             });
         }
-        
+
         await db.query('COMMIT');
-        
+
         const trip = updateResult.rows[0];
         console.log(`✅ Trip ${tripId} accepted successfully`);
-        
+
         // 🚀 NOTIFICATION - Informer les autres chauffeurs que la course est prise (WebSocket)
         try {
             console.log('📢 Notifying other drivers that trip was taken via WebSocket...');
-            
+
             // Récupérer les chauffeurs encore connectés
             const { getConnectionStatus, notifyTripTaken } = require('./websocket');
             const connectionStatus = getConnectionStatus();
-            
+
             if (connectionStatus.totalConnections > 0) {
                 console.log(`📊 ${connectionStatus.totalConnections} drivers connected via WebSocket, notifying them`);
-                
+
                 // Notifier via WebSocket que cette course est prise (pour fermer les modals)
                 notifyTripTaken(tripId, driverId);
             }
         } catch (notifyError) {
             console.error('⚠️ Error notifying other drivers via WebSocket (trip still accepted):', notifyError.message);
         }
-        
+
         return res.json({
             success: true,
             message: 'Course acceptée avec succès',
@@ -200,11 +205,11 @@ router.post('/accept', async (req, res) => {
                 }
             }
         });
-        
+
     } catch (err) {
         await db.query('ROLLBACK');
         console.error("❌ Error accepting trip:", err);
-        
+
         if (!res.headersSent) {
             res.status(500).json({
                 success: false,
@@ -218,7 +223,7 @@ router.post('/accept', async (req, res) => {
 // Update trip status (arrived at pickup, started trip, completed trip)
 router.post('/status', async (req, res) => {
     const { driverId, tripId, status, location } = req.body;
-    
+
     if (!driverId || !tripId || !status) {
         return res.status(400).json({
             success: false,
@@ -228,7 +233,7 @@ router.post('/status', async (req, res) => {
 
     try {
         console.log(`🚗 Updating trip ${tripId} status to: ${status}`);
-        
+
         // Validate status transition
         const validStatuses = ['en_route_pickup', 'arrivee_pickup', 'en_cours', 'terminee'];
         if (!validStatuses.includes(status)) {
@@ -237,16 +242,16 @@ router.post('/status', async (req, res) => {
                 error: 'Statut invalide'
             });
         }
-        
+
         await db.query('BEGIN');
-        
+
         // Get current trip status
         const currentTrip = await db.query(`
             SELECT etat_course, id_chauffeur 
             FROM Course 
             WHERE id_course = $1
         `, [tripId]);
-        
+
         if (currentTrip.rowCount === 0) {
             await db.query('ROLLBACK');
             return res.status(404).json({
@@ -254,7 +259,7 @@ router.post('/status', async (req, res) => {
                 error: 'Course non trouvée'
             });
         }
-        
+
         if (currentTrip.rows[0].id_chauffeur !== parseInt(driverId)) {
             await db.query('ROLLBACK');
             return res.status(403).json({
@@ -262,11 +267,11 @@ router.post('/status', async (req, res) => {
                 error: 'Vous n\'êtes pas assigné à cette course'
             });
         }
-        
+
         const oldStatus = currentTrip.rows[0].etat_course;
         let updateQuery;
         let updateParams;
-        
+
         // Determine what timestamp to update based on status
         switch (status) {
             case 'arrivee_pickup':
@@ -277,7 +282,7 @@ router.post('/status', async (req, res) => {
                 `;
                 updateParams = [status, tripId, driverId];
                 break;
-                
+
             case 'en_cours':
                 updateQuery = `
                     UPDATE Course 
@@ -286,7 +291,7 @@ router.post('/status', async (req, res) => {
                 `;
                 updateParams = [status, tripId, driverId];
                 break;
-                
+
             case 'terminee':
                 updateQuery = `
                     UPDATE Course 
@@ -295,7 +300,7 @@ router.post('/status', async (req, res) => {
                 `;
                 updateParams = [status, tripId, driverId];
                 break;
-                
+
             default:
                 updateQuery = `
                     UPDATE Course 
@@ -304,9 +309,9 @@ router.post('/status', async (req, res) => {
                 `;
                 updateParams = [status, tripId, driverId];
         }
-        
+
         const updateResult = await db.query(updateQuery, updateParams);
-        
+
         if (updateResult.rowCount === 0) {
             await db.query('ROLLBACK');
             return res.status(400).json({
@@ -314,11 +319,11 @@ router.post('/status', async (req, res) => {
                 error: 'Impossible de mettre à jour le statut'
             });
         }
-        
+
         await db.query('COMMIT');
-        
+
         console.log(`✅ Trip ${tripId} status updated from ${oldStatus} to ${status}`);
-        
+
         res.json({
             success: true,
             message: 'Statut mis à jour avec succès',
@@ -339,10 +344,10 @@ router.post('/status', async (req, res) => {
 // Get current trip for driver
 router.get('/current/:driverId', async (req, res) => {
     const { driverId } = req.params;
-    
+
     try {
         console.log(`🚗 Fetching current trip for driver: ${driverId}`);
-        
+
         const result = await db.query(`
             SELECT 
                 c.*,
@@ -365,7 +370,7 @@ router.get('/current/:driverId', async (req, res) => {
         }
 
         const trip = result.rows[0];
-        
+
         res.json({
             success: true,
             hasCurrentTrip: true,
@@ -411,7 +416,7 @@ router.get('/current/:driverId', async (req, res) => {
 // Complete trip and confirm payment
 router.post('/complete', async (req, res) => {
     const { driverId, tripId, paymentMethod } = req.body;
-    
+
     if (!driverId || !tripId || !paymentMethod) {
         return res.status(400).json({
             success: false,
@@ -421,9 +426,9 @@ router.post('/complete', async (req, res) => {
 
     try {
         console.log(`🚗 Completing trip ${tripId} with payment: ${paymentMethod}`);
-        
+
         await db.query('BEGIN');
-        
+
         // Update trip as completed and set payment method
         const updateResult = await db.query(`
             UPDATE Course 
@@ -434,7 +439,7 @@ router.post('/complete', async (req, res) => {
             WHERE id_course = $2 AND id_chauffeur = $3 AND etat_course IN ('en_cours', 'terminee')
             RETURNING *
         `, [paymentMethod, tripId, driverId]);
-        
+
         if (updateResult.rowCount === 0) {
             await db.query('ROLLBACK');
             return res.status(400).json({
@@ -442,13 +447,13 @@ router.post('/complete', async (req, res) => {
                 error: 'Impossible de terminer la course'
             });
         }
-        
+
         await db.query('COMMIT');
-        
+
         const trip = updateResult.rows[0];
-        
+
         console.log(`✅ Trip ${tripId} completed successfully`);
-        
+
         res.json({
             success: true,
             message: 'Course terminée avec succès',
@@ -473,7 +478,7 @@ router.post('/complete', async (req, res) => {
 // Cancel trip
 router.post('/cancel', async (req, res) => {
     const { driverId, tripId, reason } = req.body;
-    
+
     if (!driverId || !tripId) {
         return res.status(400).json({
             success: false,
@@ -483,16 +488,16 @@ router.post('/cancel', async (req, res) => {
 
     try {
         console.log(`🚗 Cancelling trip ${tripId}, reason: ${reason || 'No reason provided'}`);
-        
+
         await db.query('BEGIN');
-        
+
         // Get current trip status
         const currentTrip = await db.query(`
             SELECT etat_course 
             FROM Course 
             WHERE id_course = $1 AND id_chauffeur = $2
         `, [tripId, driverId]);
-        
+
         if (currentTrip.rowCount === 0) {
             await db.query('ROLLBACK');
             return res.status(404).json({
@@ -500,18 +505,18 @@ router.post('/cancel', async (req, res) => {
                 error: 'Course non trouvée'
             });
         }
-        
+
         // Cancel trip
         await db.query(`
             UPDATE Course 
             SET etat_course = 'annulee', id_chauffeur = NULL
             WHERE id_course = $1 AND id_chauffeur = $2
         `, [tripId, driverId]);
-        
+
         await db.query('COMMIT');
-        
+
         console.log(`✅ Trip ${tripId} cancelled successfully`);
-        
+
         res.json({
             success: true,
             message: 'Course annulée avec succès'
