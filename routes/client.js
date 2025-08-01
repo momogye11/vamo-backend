@@ -523,4 +523,118 @@ router.get('/deliveries/:telephone', async (req, res) => {
   }
 });
 
+// GET - Get client's current active trip with driver details
+router.get('/current/:clientId', async (req, res) => {
+  const { clientId } = req.params;
+  
+  try {
+    console.log(`🚗 Fetching current trip for client: ${clientId}`);
+    
+    // Get current trip with full driver and vehicle details
+    const result = await db.query(`
+      SELECT 
+        c.id_course,
+        c.adresse_depart,
+        c.adresse_arrivee,
+        c.distance_km,
+        c.duree_min,
+        c.prix,
+        c.mode_paiement,
+        c.mode_silencieux,
+        c.latitude_depart,
+        c.longitude_depart,
+        c.latitude_arrivee,
+        c.longitude_arrivee,
+        c.telephone_client,
+        c.nom_client,
+        c.date_heure_depart,
+        c.date_heure_debut_course,
+        c.etat_course,
+        ch.id_chauffeur,
+        ch.nom AS chauffeur_nom,
+        ch.prenom AS chauffeur_prenom,
+        ch.telephone AS chauffeur_telephone,
+        v.marque AS vehicule_marque,
+        v.modele AS vehicule_modele,
+        v.plaque_immatriculation,
+        v.couleur AS vehicule_couleur
+      FROM Course c
+      LEFT JOIN Chauffeur ch ON c.id_chauffeur = ch.id_chauffeur
+      LEFT JOIN Vehicule v ON v.id_chauffeur = ch.id_chauffeur
+      WHERE c.id_client = $1 
+      AND c.etat_course IN ('acceptee', 'en_route_pickup', 'arrivee_pickup', 'en_cours')
+      ORDER BY c.date_heure_depart DESC
+      LIMIT 1
+    `, [clientId]);
+
+    console.log(`📊 Found ${result.rowCount} active trips for client ${clientId}`);
+
+    if (result.rowCount === 0) {
+      return res.json({
+        success: true,
+        hasActiveTrip: false,
+        message: 'Aucune course active'
+      });
+    }
+
+    const trip = result.rows[0];
+    
+    // Format the response
+    const response = {
+      success: true,
+      hasActiveTrip: true,
+      trip: {
+        id: trip.id_course,
+        pickup: trip.adresse_depart,
+        destination: trip.adresse_arrivee,
+        distance: trip.distance_km,
+        duration: trip.duree_min,
+        price: trip.prix,
+        paymentMode: trip.mode_paiement,
+        silentMode: trip.mode_silencieux,
+        status: trip.etat_course,
+        departureTime: trip.date_heure_depart,
+        startTime: trip.date_heure_debut_course,
+        chauffeur: trip.id_chauffeur ? {
+          id: trip.id_chauffeur,
+          nom: `${trip.chauffeur_prenom || ''} ${trip.chauffeur_nom || ''}`.trim(),
+          telephone: trip.chauffeur_telephone,
+          vehicule: {
+            marque: trip.vehicule_marque,
+            modele: trip.vehicule_modele,
+            plaque: trip.plaque_immatriculation,
+            couleur: trip.vehicule_couleur
+          }
+        } : null,
+        pickupCoords: trip.latitude_depart && trip.longitude_depart ? {
+          latitude: parseFloat(trip.latitude_depart),
+          longitude: parseFloat(trip.longitude_depart)
+        } : null,
+        destinationCoords: trip.latitude_arrivee && trip.longitude_arrivee ? {
+          latitude: parseFloat(trip.latitude_arrivee),
+          longitude: parseFloat(trip.longitude_arrivee)
+        } : null
+      }
+    };
+
+    console.log(`✅ Returning trip details:`, {
+      tripId: response.trip.id,
+      status: response.trip.status,
+      hasDriver: !!response.trip.chauffeur,
+      driverName: response.trip.chauffeur?.nom
+    });
+
+    res.json(response);
+
+  } catch (err) {
+    console.error(`❌ Error fetching current trip for client ${clientId}:`, err);
+    console.error('❌ Stack trace:', err.stack);
+    res.status(500).json({
+      success: false,
+      error: 'Erreur serveur',
+      details: err.message
+    });
+  }
+});
+
 module.exports = router;
