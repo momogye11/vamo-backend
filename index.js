@@ -34,6 +34,26 @@ app.get('/api/debug/test', (req, res) => {
     });
 });
 
+// Database test endpoint
+app.get('/api/debug/db-test', async (req, res) => {
+    try {
+        const result = await db.query('SELECT NOW() as current_time');
+        res.json({
+            success: true,
+            message: 'Database connection working',
+            currentTime: result.rows[0].current_time,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('❌ Database test failed:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Database connection failed',
+            details: error.message
+        });
+    }
+});
+
 // Debug accept endpoint
 app.post('/api/debug/accept', (req, res) => {
     console.log('🔧 Debug accept endpoint hit');
@@ -152,8 +172,11 @@ try {
 
 // 🚀 Lancer serveur
 const PORT = process.env.PORT || 5002;
-const server = app.listen(PORT, '0.0.0.0', () => {
+const server = app.listen(PORT, '0.0.0.0', async () => {
     console.log(`✅ Serveur en ligne sur http://0.0.0.0:${PORT}`);
+    
+    // Initialize database after server starts
+    await initializeDatabase();
 
     // Add a heartbeat to confirm server stays alive
     setTimeout(() => {
@@ -256,11 +279,3 @@ async function initializeDatabase() {
   }
 }
 
-// Start server and initialize database
-const PORT = process.env.PORT || 5002;
-app.listen(PORT, '0.0.0.0', async () => {
-  console.log(`✅ Serveur en ligne sur http://0.0.0.0:${PORT}`);
-  
-  // Initialize database after server starts
-  await initializeDatabase();
-});
