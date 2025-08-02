@@ -313,9 +313,12 @@ router.get('/search/:searchId/status', async (req, res) => {
         } else {
             // Check if we've been searching too long (simulate timeout)
             const searchDuration = new Date() - searchData.startTime;
-            if (searchDuration > 30000) { // 30 seconds timeout for demo
+            if (searchDuration > 120000) { // 2 minutes timeout instead of 30 seconds
                 status = 'no_drivers';
                 searchData.status = 'no_drivers';
+                console.log(`⏰ Search timeout after ${Math.round(searchDuration/1000)}s for course ${searchData.courseId}`);
+            } else {
+                console.log(`⏳ Still searching... ${Math.round(searchDuration/1000)}s elapsed`);
             }
         }
         
