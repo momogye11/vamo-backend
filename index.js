@@ -723,3 +723,140 @@ async function initializeDatabase() {
   }
 }
 
+// Debug endpoint to upload livreur's local images to Cloudinary
+app.post('/api/debug/upload-livreur-to-cloudinary', async (req, res) => {
+    try {
+        const { id_livreur } = req.body;
+        
+        if (!id_livreur) {
+            return res.status(400).json({
+                success: false,
+                error: 'id_livreur is required'
+            });
+        }
+
+        console.log(`🔧 Uploading livreur ${id_livreur} images to Cloudinary...`);
+
+        // Check if Cloudinary is available
+        let cloudinary;
+        try {
+            cloudinary = require('cloudinary').v2;
+            if (!process.env.CLOUDINARY_CLOUD_NAME) {
+                throw new Error('Cloudinary not configured');
+            }
+        } catch (error) {
+            return res.status(500).json({
+                success: false,
+                error: 'Cloudinary not available',
+                details: error.message
+            });
+        }
+
+        // Get current livreur data
+        const livreurResult = await db.query(`
+            SELECT photo_cni, photo_selfie, photo_vehicule, nom, prenom
+            FROM Livreur 
+            WHERE id_livreur = $1
+        `, [id_livreur]);
+
+        if (livreurResult.rowCount === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Livreur not found'
+            });
+        }
+
+        const livreur = livreurResult.rows[0];
+        const fs = require('fs');
+        const path = require('path');
+
+        // Upload each image to Cloudinary
+        const uploadPromises = [];
+        const imageFields = [
+            { field: 'photo_cni', key: 'cni' },
+            { field: 'photo_selfie', key: 'selfie' },
+            { field: 'photo_vehicule', key: 'vehicule' }
+        ];
+
+        for (const { field, key } of imageFields) {
+            const localPath = livreur[field];
+            if (localPath && localPath.startsWith('uploads/')) {
+                const fullPath = path.join(__dirname, '..', localPath);
+                
+                if (fs.existsSync(fullPath)) {
+                    console.log(`📤 Uploading ${key} to Cloudinary: ${localPath}`);
+                    uploadPromises.push(
+                        cloudinary.uploader.upload(fullPath, {
+                            folder: 'vamo/livreurs',
+                            resource_type: 'auto'
+                        }).then(result => ({
+                            field,
+                            key,
+                            cloudinaryUrl: result.secure_url,
+                            success: true
+                        })).catch(error => ({
+                            field,
+                            key,
+                            error: error.message,
+                            success: false
+                        }))
+                    );
+                } else {
+                    console.log(`⚠️ File not found: ${fullPath}`);
+                    uploadPromises.push(Promise.resolve({
+                        field,
+                        key,
+                        error: 'File not found',
+                        success: false
+                    }));
+                }
+            }
+        }
+
+        const uploadResults = await Promise.all(uploadPromises);
+        
+        // Update database with Cloudinary URLs
+        const updates = {};
+        uploadResults.forEach(result => {
+            if (result.success) {
+                updates[result.field] = result.cloudinaryUrl;
+            }
+        });
+
+        if (Object.keys(updates).length > 0) {
+            const updateQuery = `
+                UPDATE Livreur 
+                SET ${Object.keys(updates).map((field, index) => `${field} = $${index + 2}`).join(', ')}
+                WHERE id_livreur = $1
+                RETURNING id_livreur, nom, prenom, photo_cni, photo_selfie, photo_vehicule
+            `;
+            
+            const updateValues = [id_livreur, ...Object.values(updates)];
+            const updateResult = await db.query(updateQuery, updateValues);
+
+            console.log(`✅ Livreur ${id_livreur} images updated with Cloudinary URLs`);
+
+            res.json({
+                success: true,
+                message: 'Livreur images uploaded to Cloudinary successfully',
+                livreur: updateResult.rows[0],
+                uploadResults
+            });
+        } else {
+            res.json({
+                success: false,
+                message: 'No images were uploaded',
+                uploadResults
+            });
+        }
+
+    } catch (error) {
+        console.error('❌ Error uploading livreur to Cloudinary:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to upload livreur to Cloudinary',
+            details: error.message
+        });
+    }
+});
+
