@@ -533,6 +533,16 @@ try {
     console.error('❌ Error loading livraison routes:', error);
 }
 
+// Load debug routes
+console.log('Loading debug routes...');
+try {
+    const debugRouter = require('./routes/debug');
+    app.use('/api/debug', debugRouter);
+    console.log('✅ Debug routes loaded successfully');
+} catch (error) {
+    console.error('❌ Error loading debug routes:', error);
+}
+
 try {
     app.use('/api/locations', require('./routes/locations'));
     console.log('✅ Locations routes loaded successfully');
