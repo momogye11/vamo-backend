@@ -57,55 +57,102 @@ router.get('/', async (req, res) => {
 
 // Register new delivery person
 router.post('/register', upload.fields([
-    { name: 'photo_vehicule', maxCount: 1 },
     { name: 'photo_cni', maxCount: 1 },
-    { name: 'photo_selfie', maxCount: 1 }
+    { name: 'photo_selfie', maxCount: 1 },
+    { name: 'photo_vehicule', maxCount: 1 }
 ]), async (req, res) => {
-    console.log("🛵 Tentative d'inscription livreur:");
-    console.log("  Body reçu:", req.body);
-    console.log("  Files reçus:", req.files);
-    console.log("  Headers:", req.headers['content-type']);
-
     const { nom, prenom, telephone, type_vehicule } = req.body;
-
-    console.log("📋 Champs extraits du body:");
-    console.log("  nom:", nom);
-    console.log("  prenom:", prenom);
-    console.log("  telephone:", telephone);
-    console.log("  type_vehicule:", type_vehicule);
-
-    // Validation des champs obligatoires
-    if (!nom || !prenom || !telephone || !type_vehicule) {
-        console.log("❌ Validation échouée - champs manquants");
-        return res.status(400).json({
-            success: false,
-            error: 'Tous les champs sont obligatoires'
-        });
-    }
-
-    // Validation du type de véhicule
-    if (!['bike', 'motorcycle'].includes(type_vehicule)) {
-        return res.status(400).json({
-            success: false,
-            error: 'Type de véhicule invalide'
-        });
-    }
-
-    // Validation des photos
-    console.log("📸 Validation des photos:");
-    console.log("  photo_vehicule présente:", !!req.files.photo_vehicule);
-    console.log("  photo_cni présente:", !!req.files.photo_cni);
-    console.log("  photo_selfie présente:", !!req.files.photo_selfie);
-    
-    if (!req.files.photo_vehicule || !req.files.photo_cni || !req.files.photo_selfie) {
-        console.log("❌ Photos manquantes");
-        return res.status(400).json({
-            success: false,
-            error: 'Les 3 photos sont obligatoires (véhicule, CNI, selfie)'
-        });
-    }
+    const files = req.files;
 
     try {
+        console.log('🛵 Registering new delivery person:', { nom, prenom, telephone, type_vehicule });
+        console.log('📁 Files received:', Object.keys(files || {}));
+
+        // Upload images to Cloudinary if available
+        let photoUrls = {
+            photo_cni: null,
+            photo_selfie: null,
+            photo_vehicule: null
+        };
+
+        console.log('🔍 Checking Cloudinary availability...');
+        console.log('📋 CLOUDINARY_CLOUD_NAME:', process.env.CLOUDINARY_CLOUD_NAME ? 'SET' : 'NOT_SET');
+        console.log('📋 Files received:', files ? Object.keys(files) : 'NO_FILES');
+
+        if (process.env.CLOUDINARY_CLOUD_NAME && files) {
+            console.log('✅ Cloudinary environment variable found, attempting upload...');
+            try {
+                const cloudinary = require('cloudinary').v2;
+                console.log('✅ Cloudinary module loaded successfully');
+                
+                cloudinary.config({
+                    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+                    api_key: process.env.CLOUDINARY_API_KEY,
+                    api_secret: process.env.CLOUDINARY_API_SECRET
+                });
+                console.log('✅ Cloudinary configured successfully');
+
+                for (const [fieldName, fileArray] of Object.entries(files)) {
+                    if (fileArray && fileArray.length > 0) {
+                        const file = fileArray[0];
+                        console.log(`📤 Uploading ${fieldName} to Cloudinary:`, file.path);
+                        
+                        const result = await cloudinary.uploader.upload(file.path, {
+                            folder: 'vamo/livreurs',
+                            resource_type: 'auto'
+                        });
+                        
+                        photoUrls[fieldName] = result.secure_url;
+                        console.log(`✅ ${fieldName} uploaded successfully:`, result.secure_url);
+                    }
+                }
+            } catch (cloudinaryError) {
+                console.error('❌ Cloudinary upload error:', cloudinaryError);
+                console.error('❌ Error details:', cloudinaryError.message);
+                // Continue with local file paths if Cloudinary fails
+            }
+        } else {
+            console.log('⚠️ Cloudinary not available or no files:');
+            console.log('  - CLOUDINARY_CLOUD_NAME:', process.env.CLOUDINARY_CLOUD_NAME ? 'SET' : 'NOT_SET');
+            console.log('  - Files:', files ? 'PRESENT' : 'NOT_PRESENT');
+        }
+
+        // Use Cloudinary URLs if available, otherwise use local paths
+        const photo_cni = photoUrls.photo_cni || (files?.photo_cni?.[0]?.filename || null);
+        const photo_selfie = photoUrls.photo_selfie || (files?.photo_selfie?.[0]?.filename || null);
+        const photo_vehicule = photoUrls.photo_vehicule || (files?.photo_vehicule?.[0]?.filename || null);
+
+        // Validation des champs obligatoires
+        if (!nom || !prenom || !telephone || !type_vehicule) {
+            console.log("❌ Validation échouée - champs manquants");
+            return res.status(400).json({
+                success: false,
+                error: 'Tous les champs sont obligatoires'
+            });
+        }
+
+        // Validation du type de véhicule
+        if (!['bike', 'motorcycle'].includes(type_vehicule)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Type de véhicule invalide'
+            });
+        }
+
+        // Validation des photos
+        console.log("📸 Validation des photos:");
+        console.log("  photo_vehicule présente:", !!photo_vehicule);
+        console.log("  photo_cni présente:", !!photo_cni);
+        console.log("  photo_selfie présente:", !!photo_selfie);
+        
+        if (!photo_vehicule || !photo_cni || !photo_selfie) {
+            console.log("❌ Photos manquantes");
+            return res.status(400).json({
+                success: false,
+                error: 'Les 3 photos sont obligatoires (véhicule, CNI, selfie)'
+            });
+        }
+
         console.log("🔄 Début de l'insertion en base de données...");
         // Vérifier si le numéro de téléphone existe déjà
         console.log("📞 Vérification numéro existant pour:", telephone);
@@ -139,9 +186,9 @@ router.post('/register', upload.fields([
 
         // Créer le livreur avec les photos
         console.log("💾 Préparation de l'insertion avec les données:");
-        console.log("  Fichier véhicule:", req.files.photo_vehicule[0].path);
-        console.log("  Fichier CNI:", req.files.photo_cni[0].path);
-        console.log("  Fichier selfie:", req.files.photo_selfie[0].path);
+        console.log("  Fichier véhicule:", photo_vehicule);
+        console.log("  Fichier CNI:", photo_cni);
+        console.log("  Fichier selfie:", photo_selfie);
         
         const result = await db.query(
             `INSERT INTO Livreur 
@@ -153,9 +200,9 @@ router.post('/register', upload.fields([
                 prenom,
                 telephone,
                 type_vehicule,
-                req.files.photo_vehicule[0].path,
-                req.files.photo_cni[0].path,
-                req.files.photo_selfie[0].path
+                photo_vehicule,
+                photo_cni,
+                photo_selfie
             ]
         );
         console.log("✅ Insertion réussie:", result.rows[0]);
