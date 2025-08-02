@@ -39,6 +39,12 @@ const uploadToCloudinary = async (file, folder = 'vamo') => {
             throw new Error('Cloudinary not configured');
         }
         
+        // Check if file exists locally
+        const fs = require('fs');
+        if (!fs.existsSync(file)) {
+            throw new Error(`File not found: ${file}`);
+        }
+        
         const result = await cloudinary.uploader.upload(file, {
             folder: folder,
             resource_type: 'auto'
@@ -219,6 +225,54 @@ app.post('/api/debug/create-test-chauffeur', async (req, res) => {
         res.status(500).json({
             success: false,
             error: 'Failed to create test chauffeur',
+            details: error.message
+        });
+    }
+});
+
+// Debug endpoint to update livreur images with working URLs
+app.post('/api/debug/update-livreur-images', async (req, res) => {
+    try {
+        const { id_livreur } = req.body;
+        
+        if (!id_livreur) {
+            return res.status(400).json({
+                success: false,
+                error: 'id_livreur is required'
+            });
+        }
+
+        console.log(`🔧 Updating images for livreur ID: ${id_livreur}`);
+
+        // Update with placeholder images that work
+        const result = await db.query(`
+            UPDATE Livreur 
+            SET photo_cni = 'https://via.placeholder.com/400x300/4CAF50/FFFFFF?text=CNI',
+                photo_selfie = 'https://via.placeholder.com/400x300/2196F3/FFFFFF?text=Selfie',
+                photo_vehicule = 'https://via.placeholder.com/400x300/FF9800/FFFFFF?text=Vehicule'
+            WHERE id_livreur = $1
+            RETURNING id_livreur, nom, prenom, photo_cni, photo_selfie, photo_vehicule
+        `, [id_livreur]);
+
+        if (result.rowCount === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Livreur not found'
+            });
+        }
+
+        console.log(`✅ Livreur ${id_livreur} images updated successfully`);
+
+        res.json({
+            success: true,
+            message: 'Livreur images updated successfully',
+            livreur: result.rows[0]
+        });
+    } catch (error) {
+        console.error('❌ Error updating livreur images:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to update livreur images',
             details: error.message
         });
     }
