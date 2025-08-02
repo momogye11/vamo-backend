@@ -365,6 +365,38 @@ async function notifyAllDeliveryDrivers(availableDriversList, deliveryNotificati
     return notifiedCount;
 }
 
+// Fonction pour obtenir les connexions WebSocket
+function getWebSocketConnections() {
+    const connections = {
+        drivers: [],
+        deliveryDrivers: []
+    };
+    
+    // Connexions des chauffeurs
+    for (const [driverId, data] of connectedDrivers.entries()) {
+        connections.drivers.push({
+            driverId: driverId,
+            driverName: data.driverName,
+            connectedAt: data.connectedAt,
+            lastPing: data.lastPing,
+            connected: data.ws.readyState === WebSocket.OPEN
+        });
+    }
+    
+    // Connexions des livreurs
+    for (const [driverId, data] of connectedDeliveryDrivers.entries()) {
+        connections.deliveryDrivers.push({
+            driverId: driverId,
+            driverName: data.driverName,
+            connectedAt: data.connectedAt,
+            lastPing: data.lastPing,
+            connected: data.ws.readyState === WebSocket.OPEN
+        });
+    }
+    
+    return connections;
+}
+
 // Fonction pour notifier qu'une course a été prise
 function notifyTripTaken(tripId, takenByDriverId) {
     console.log(`📢 Broadcasting trip taken: ${tripId} by driver ${takenByDriverId}`);
@@ -458,6 +490,7 @@ module.exports = {
     initializeWebSocket,
     notifyAllDrivers,
     notifyAllDeliveryDrivers,
+    getWebSocketConnections,
     notifyTripTaken,
     getConnectedDriversCount: () => connectedDrivers.size,
     getConnectionStatus: () => {

@@ -102,4 +102,24 @@ router.post('/set-livreur-available', async (req, res) => {
     }
 });
 
+// Endpoint pour voir les connexions WebSocket des livreurs
+router.get('/websocket-connections', async (req, res) => {
+    try {
+        const { getWebSocketConnections } = require('./websocket');
+        const connections = getWebSocketConnections();
+        
+        res.json({
+            success: true,
+            connections: connections
+        });
+        
+    } catch (error) {
+        console.error('❌ Error getting WebSocket connections:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
 module.exports = router; 
