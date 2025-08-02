@@ -1,9 +1,31 @@
 const express = require('express');
 const cors = require('cors');
+const cloudinary = require('cloudinary').v2;
 const app = express();
 const db = require('./db');
 
 require('dotenv').config();
+
+// Configure Cloudinary
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
+});
+
+// Helper function to upload image to Cloudinary
+const uploadToCloudinary = async (file, folder = 'vamo') => {
+    try {
+        const result = await cloudinary.uploader.upload(file, {
+            folder: folder,
+            resource_type: 'auto'
+        });
+        return result.secure_url;
+    } catch (error) {
+        console.error('❌ Cloudinary upload error:', error);
+        throw error;
+    }
+};
 
 app.use(cors());
 app.use(express.json());
@@ -23,6 +45,30 @@ app.use((req, res, next) => {
 
 // Serve static files (photos)
 app.use('/uploads', express.static('uploads'));
+
+// Debug endpoint to convert local image URLs to Cloudinary URLs
+app.get('/api/image/:type/:filename', async (req, res) => {
+    try {
+        const { type, filename } = req.params;
+        
+        // Construct the local file path
+        const localPath = `uploads/${type}/${filename}`;
+        
+        // Try to upload to Cloudinary if not already there
+        const cloudinaryUrl = await uploadToCloudinary(localPath, `vamo/${type}`);
+        
+        res.json({
+            success: true,
+            url: cloudinaryUrl
+        });
+    } catch (error) {
+        console.error('❌ Error serving image:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to serve image'
+        });
+    }
+});
 
 // Debug endpoint to test server response
 app.get('/api/debug/test', (req, res) => {
