@@ -2,7 +2,648 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 
-// Création d'une nouvelle livraison
+// Store for managing active delivery searches
+const activeDeliverySearches = new Map();
+
+// Utility function to calculate distance between two coordinates (Haversine formula)
+function calculateDistance(coord1, coord2) {
+    const R = 6371; // Earth's radius in kilometers
+    const dLat = (coord2.lat - coord1.lat) * Math.PI / 180;
+    const dLng = (coord2.lng - coord1.lng) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(coord1.lat * Math.PI / 180) * Math.cos(coord2.lat * Math.PI / 180) *
+              Math.sin(dLng/2) * Math.sin(dLng/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c; // Distance in km
+}
+
+// Start a delivery search for a delivery request
+router.post('/search', async (req, res) => {
+    const {
+        origin,
+        destination,
+        deliveryType,
+        paymentMethod,
+        estimatedFare,
+        routeDistance,
+        routeDuration,
+        colisSize,
+        description,
+        instructions
+    } = req.body;
+    
+    try {
+        console.log('🚚 Starting delivery search with full data:');
+        console.log('  Origin:', JSON.stringify(origin, null, 2));
+        console.log('  Destination:', JSON.stringify(destination, null, 2));
+        console.log('  Delivery Type:', deliveryType);
+        console.log('  Payment Method:', paymentMethod);
+        console.log('  Estimated Fare:', estimatedFare);
+        console.log('  Route Distance:', routeDistance);
+        console.log('  Route Duration:', routeDuration);
+        console.log('  Colis Size:', colisSize);
+        
+        // Extract addresses and coordinates from the frontend data structure
+        const originAddress = origin?.description || origin?.address || 'Unknown origin';
+        const destinationAddress = destination?.description || destination?.address || 'Unknown destination';
+        const originCoords = origin?.location || origin?.coordinates || { lat: 14.7275, lng: -17.5113 };
+        const destCoords = destination?.location || destination?.coordinates || { lat: 14.7167, lng: -17.4677 };
+        
+        // Validate required fields
+        if (!origin || !destination || !estimatedFare) {
+            console.error('❌ Missing required fields:', { origin: !!origin, destination: !!destination, estimatedFare: !!estimatedFare });
+            return res.status(400).json({
+                success: false,
+                error: 'Origin, destination, and estimated fare are required'
+            });
+        }
+
+        // Additional validation for extreme values (respecting database constraints)
+        const cleanDistance = Math.min(parseFloat(routeDistance) || 5.0, 999.99); // BD constraint: numeric(5,2)
+        const cleanDuration = Math.min(parseInt(routeDuration?.replace(/[^\d]/g, '')) || 15, 1440); // 24h max
+        const cleanFare = Math.min(parseFloat(estimatedFare) || 0, 99999999.99); // BD constraint: numeric(10,2)
+        
+        console.log('🔧 Data validation/cleaning:');
+        console.log('  Original distance:', routeDistance, '→ Clean:', cleanDistance);
+        console.log('  Original duration:', routeDuration, '→ Clean:', cleanDuration);
+        console.log('  Original fare:', estimatedFare, '→ Clean:', cleanFare);
+        
+        // Map payment method to database format
+        const mapPaymentMethod = (method) => {
+            const normalized = (method || 'especes').toLowerCase();
+            switch (normalized) {
+                case 'orange':
+                case 'orange money':
+                case 'orange_money':
+                    return 'orange_money';
+                case 'wave':
+                case 'wave money':
+                    return 'wave';
+                case 'especes':
+                case 'cash':
+                case 'argent':
+                    return 'especes';
+                default:
+                    return 'especes';
+            }
+        };
+        
+        const dbPaymentMethod = mapPaymentMethod(paymentMethod);
+        console.log('  Payment method mapping:', paymentMethod, '→', dbPaymentMethod);
+        
+        // Map delivery type to database format
+        const mapDeliveryType = (type) => {
+            const normalized = (type || 'express').toLowerCase();
+            switch (normalized) {
+                case 'express':
+                    return 1; // TypeLivraison ID for express
+                case 'flex':
+                case 'standard':
+                    return 2; // TypeLivraison ID for flex
+                default:
+                    return 1;
+            }
+        };
+        
+        const dbDeliveryType = mapDeliveryType(deliveryType);
+        console.log('  Delivery type mapping:', deliveryType, '→', dbDeliveryType);
+        
+        // Start database transaction
+        await pool.query('BEGIN');
+        
+        // Create a delivery request in the database
+        const deliveryResult = await pool.query(`
+            INSERT INTO Livraison (
+                adresse_depart,
+                adresse_arrivee,
+                latitude_depart,
+                longitude_depart,
+                latitude_arrivee,
+                longitude_arrivee,
+                distance_km,
+                duree_estimee_min,
+                prix,
+                mode_paiement,
+                taille_colis,
+                description_colis,
+                instructions,
+                id_type,
+                date_heure_demande,
+                etat_livraison
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, CURRENT_TIMESTAMP, 'en_attente')
+            RETURNING id_livraison
+        `, [
+            originAddress,
+            destinationAddress,
+            parseFloat(originCoords.lat || originCoords.latitude) || 14.7275,
+            parseFloat(originCoords.lng || originCoords.longitude) || -17.5113,
+            parseFloat(destCoords.lat || destCoords.latitude) || 14.7167,
+            parseFloat(destCoords.lng || destCoords.longitude) || -17.4677,
+            cleanDistance,
+            cleanDuration, 
+            cleanFare,
+            dbPaymentMethod,
+            colisSize || 'M',
+            description || 'Colis à livrer',
+            instructions || '',
+            dbDeliveryType
+        ]);
+        
+        const deliveryId = deliveryResult.rows[0].id_livraison;
+        const searchId = `delivery_search_${deliveryId}_${Date.now()}`;
+        
+        // Store search session data
+        activeDeliverySearches.set(searchId, {
+            deliveryId: deliveryId,
+            status: 'searching',
+            origin: origin,
+            destination: destination,
+            estimatedFare: estimatedFare,
+            startTime: new Date(),
+            paymentMethod: paymentMethod,
+            deliveryType: deliveryType
+        });
+        
+        await pool.query('COMMIT');
+        
+        console.log(`✅ Delivery search started: ${searchId} (Delivery ID: ${deliveryId})`);
+        
+        // 🚀 BROADCAST À TOUS LES LIVREURS DISPONIBLES
+        try {
+            console.log('📡 Broadcasting new delivery to all available delivery drivers...');
+            
+            // Récupérer tous les livreurs disponibles
+            const availableDrivers = await pool.query(`
+                SELECT id_livreur, nom, prenom 
+                FROM Livreur 
+                WHERE disponibilite = true 
+                AND statut_validation = 'approuve'
+            `);
+            
+            console.log(`📊 Found ${availableDrivers.rowCount} available delivery drivers to notify`);
+            
+            // Préparer les données de la livraison pour la notification
+            const deliveryNotification = {
+                type: 'new_delivery',
+                data: {
+                    id: deliveryId,
+                    pickup: originAddress,
+                    destination: destinationAddress,
+                    distance: `${cleanDistance} km`,
+                    duration: `${cleanDuration} min`,
+                    price: cleanFare,
+                    paymentMethod: dbPaymentMethod,
+                    colisSize: colisSize || 'M',
+                    deliveryType: deliveryType,
+                    pickupCoords: {
+                        latitude: parseFloat(originCoords.lat || originCoords.latitude) || 14.7275,
+                        longitude: parseFloat(originCoords.lng || originCoords.longitude) || -17.5113
+                    },
+                    destinationCoords: {
+                        latitude: parseFloat(destCoords.lat || destCoords.latitude) || 14.7167,
+                        longitude: parseFloat(destCoords.lng || destCoords.longitude) || -17.4677
+                    }
+                }
+            };
+            
+            // Notifier chaque livreur via WebSocket (sera implémenté dans websocket.js)
+            const { notifyAllDeliveryDrivers } = require('./websocket');
+            const notifiedCount = await notifyAllDeliveryDrivers(availableDrivers.rows, deliveryNotification);
+            
+            console.log(`✅ Delivery broadcasted to ${notifiedCount} delivery drivers successfully`);
+            
+        } catch (broadcastError) {
+            console.error('⚠️ Error broadcasting to delivery drivers (delivery still created):', broadcastError.message);
+            // Ne pas faire échouer la création de livraison si la notification échoue
+        }
+        
+        res.json({
+            success: true,
+            searchId: searchId,
+            status: 'searching',
+            estimatedWaitTime: '3-7 min',
+            deliveryId: deliveryId
+        });
+        
+    } catch (err) {
+        await pool.query('ROLLBACK');
+        console.error("❌ DETAILED ERROR starting delivery search:");
+        console.error("   Error message:", err.message);
+        console.error("   Error stack:", err.stack);
+        console.error("   Error code:", err.code);
+        console.error("   Error detail:", err.detail);
+        res.status(500).json({
+            success: false,
+            error: 'Erreur serveur lors de la recherche'
+        });
+    }
+});
+
+// Check the status of a delivery search
+router.get('/search/:searchId/status', async (req, res) => {
+    const { searchId } = req.params;
+    
+    try {
+        console.log(`🔄 Checking delivery search status: ${searchId}`);
+        
+        const searchData = activeDeliverySearches.get(searchId);
+        
+        if (!searchData) {
+            return res.status(404).json({
+                success: false,
+                error: 'Delivery search session not found'
+            });
+        }
+        
+        // Check if the delivery has been assigned to a driver
+        const deliveryResult = await pool.query(`
+            SELECT 
+                l.etat_livraison,
+                l.id_livreur,
+                li.nom as livreur_nom,
+                li.prenom as livreur_prenom,
+                li.telephone as livreur_telephone
+            FROM Livraison l
+            LEFT JOIN Livreur li ON l.id_livreur = li.id_livreur
+            WHERE l.id_livraison = $1
+        `, [searchData.deliveryId]);
+        
+        if (deliveryResult.rowCount === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Delivery not found'
+            });
+        }
+        
+        const delivery = deliveryResult.rows[0];
+        let status = 'searching';
+        let driver = null;
+        
+        // Update status based on delivery state
+        if (delivery.etat_livraison === 'acceptee' && delivery.id_livreur) {
+            status = 'driver_found';
+            searchData.status = 'driver_found';
+            
+            // Récupérer les vraies données du livreur + position
+            const driverDetailsResult = await pool.query(`
+                SELECT 
+                    l.id_livreur,
+                    l.nom, l.prenom, l.telephone, l.photo_selfie,
+                    l.type_vehicule, l.marque_vehicule,
+                    pl.latitude, pl.longitude
+                FROM Livreur l
+                LEFT JOIN PositionLivreur pl ON l.id_livreur = pl.id_livreur
+                WHERE l.id_livreur = $1
+            `, [delivery.id_livreur]);
+            
+            const driverData = driverDetailsResult.rows[0] || {};
+            
+            // Calculer l'ETA approximatif (distance / vitesse moyenne 25km/h en ville pour moto)
+            const originCoords = { 
+                lat: parseFloat(delivery.latitude_depart) || 14.7167, 
+                lng: parseFloat(delivery.longitude_depart) || -17.4677 
+            };
+            const driverCoords = { 
+                lat: parseFloat(driverData.latitude) || 14.7167, 
+                lng: parseFloat(driverData.longitude) || -17.4677 
+            };
+            const estimatedDistance = calculateDistance(originCoords, driverCoords);
+            const estimatedETA = Math.max(1, Math.round(estimatedDistance / 25 * 60)); // minutes
+            
+            driver = {
+                id: driverData.id_livreur,
+                name: `${driverData.prenom || 'Livreur'} ${driverData.nom || ''}`.trim(),
+                firstName: driverData.prenom || 'Livreur',
+                lastName: driverData.nom || '',
+                phone: driverData.telephone,
+                photo: driverData.photo_selfie,
+                rating: 4.3, // TODO: Calculate real rating from NoteLivraison table
+                eta: `${estimatedETA} min`,
+                vehicle: {
+                    type: driverData.type_vehicule || 'motorcycle',
+                    make: driverData.marque_vehicule || 'Moto'
+                },
+                location: {
+                    latitude: parseFloat(driverData.latitude) || 14.7167,
+                    longitude: parseFloat(driverData.longitude) || -17.4677
+                }
+            };
+        } else if (delivery.etat_livraison === 'annulee') {
+            status = 'cancelled';
+            searchData.status = 'cancelled';
+        } else {
+            // Check if we've been searching too long (simulate timeout)
+            const searchDuration = new Date() - searchData.startTime;
+            if (searchDuration > 180000) { // 3 minutes timeout for deliveries
+                status = 'no_drivers';
+                searchData.status = 'no_drivers';
+                console.log(`⏰ Delivery search timeout after ${Math.round(searchDuration/1000)}s for delivery ${searchData.deliveryId}`);
+            } else {
+                console.log(`⏳ Still searching for delivery driver... ${Math.round(searchDuration/1000)}s elapsed`);
+            }
+        }
+        
+        console.log(`📱 Delivery search status update: ${status}`, {
+            searchId,
+            deliveryId: searchData.deliveryId,
+            driver: driver
+        });
+        
+        res.json({
+            success: true,
+            status: status,
+            driver: driver,
+            estimatedWaitTime: status === 'searching' ? '3-7 min' : null,
+            deliveryId: searchData.deliveryId
+        });
+        
+    } catch (err) {
+        console.error("❌ Error checking delivery search status:", err);
+        res.status(500).json({
+            success: false,
+            error: 'Erreur serveur'
+        });
+    }
+});
+
+// Cancel a delivery search
+router.delete('/search/:searchId', async (req, res) => {
+    const { searchId } = req.params;
+    
+    try {
+        console.log(`❌ Cancelling delivery search: ${searchId}`);
+        
+        const searchData = activeDeliverySearches.get(searchId);
+        
+        if (!searchData) {
+            return res.status(404).json({
+                success: false,
+                error: 'Delivery search session not found'
+            });
+        }
+        
+        // Update delivery status to cancelled
+        await pool.query(`
+            UPDATE Livraison 
+            SET etat_livraison = 'annulee' 
+            WHERE id_livraison = $1 AND etat_livraison = 'en_attente'
+        `, [searchData.deliveryId]);
+        
+        // Remove from active searches
+        activeDeliverySearches.delete(searchId);
+        
+        console.log(`✅ Delivery search cancelled: ${searchId}`);
+        
+        res.json({
+            success: true,
+            message: 'Delivery search cancelled successfully'
+        });
+        
+    } catch (err) {
+        console.error("❌ Error cancelling delivery search:", err);
+        res.status(500).json({
+            success: false,
+            error: 'Erreur serveur'
+        });
+    }
+});
+
+// Get delivery details after driver is found
+router.get('/delivery/:deliveryId', async (req, res) => {
+    const { deliveryId } = req.params;
+    
+    try {
+        console.log(`🚚 Fetching delivery details: ${deliveryId}`);
+        
+        const deliveryResult = await pool.query(`
+            SELECT 
+                l.*,
+                li.nom as livreur_nom,
+                li.prenom as livreur_prenom,
+                li.telephone as livreur_telephone
+            FROM Livraison l
+            LEFT JOIN Livreur li ON l.id_livreur = li.id_livreur
+            WHERE l.id_livraison = $1
+        `, [deliveryId]);
+        
+        if (deliveryResult.rowCount === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Delivery not found'
+            });
+        }
+        
+        const delivery = deliveryResult.rows[0];
+        
+        res.json({
+            success: true,
+            delivery: {
+                id: delivery.id_livraison,
+                origin: delivery.adresse_depart,
+                destination: delivery.adresse_arrivee,
+                status: delivery.etat_livraison,
+                price: delivery.prix,
+                paymentMethod: delivery.mode_paiement,
+                distance: `${delivery.distance_km} km`,
+                duration: `${delivery.duree_estimee_min} min`,
+                colisSize: delivery.taille_colis,
+                description: delivery.description_colis,
+                instructions: delivery.instructions,
+                driver: delivery.id_livreur ? {
+                    id: delivery.id_livreur,
+                    name: `${delivery.livreur_prenom} ${delivery.livreur_nom}`,
+                    phone: delivery.livreur_telephone
+                } : null,
+                coordinates: {
+                    origin: {
+                        latitude: parseFloat(delivery.latitude_depart),
+                        longitude: parseFloat(delivery.longitude_depart)
+                    },
+                    destination: {
+                        latitude: parseFloat(delivery.latitude_arrivee),
+                        longitude: parseFloat(delivery.longitude_arrivee)
+                    }
+                },
+                timestamps: {
+                    requested: delivery.date_heure_demande,
+                    collected: delivery.date_heure_collecte,
+                    completed: delivery.date_heure_arrivee
+                }
+            }
+        });
+        
+    } catch (err) {
+        console.error("❌ Error fetching delivery details:", err);
+        res.status(500).json({
+            success: false,
+            error: 'Erreur serveur'
+        });
+    }
+});
+
+// Accept delivery by delivery driver
+router.post('/accept', async (req, res) => {
+    const { driverId, deliveryId } = req.body;
+    
+    try {
+        console.log(`🚚 Livreur ${driverId} attempting to accept delivery ${deliveryId}`);
+        
+        // Validate required fields
+        if (!driverId || !deliveryId) {
+            return res.status(400).json({
+                success: false,
+                error: 'Driver ID and delivery ID are required'
+            });
+        }
+        
+        // Start database transaction
+        await pool.query('BEGIN');
+        
+        // Check if delivery is still available
+        const deliveryCheck = await pool.query(`
+            SELECT etat_livraison, id_livreur 
+            FROM Livraison 
+            WHERE id_livraison = $1
+        `, [deliveryId]);
+        
+        if (deliveryCheck.rowCount === 0) {
+            await pool.query('ROLLBACK');
+            return res.status(404).json({
+                success: false,
+                error: 'Delivery not found'
+            });
+        }
+        
+        const delivery = deliveryCheck.rows[0];
+        
+        if (delivery.etat_livraison !== 'en_attente') {
+            await pool.query('ROLLBACK');
+            return res.status(409).json({
+                success: false,
+                error: 'Delivery is no longer available'
+            });
+        }
+        
+        if (delivery.id_livreur && delivery.id_livreur !== parseInt(driverId)) {
+            await pool.query('ROLLBACK');
+            return res.status(409).json({
+                success: false,
+                error: 'Delivery already accepted by another driver'
+            });
+        }
+        
+        // Check if driver exists and is available
+        const driverCheck = await pool.query(`
+            SELECT nom, prenom, disponibilite, statut_validation 
+            FROM Livreur 
+            WHERE id_livreur = $1
+        `, [driverId]);
+        
+        if (driverCheck.rowCount === 0) {
+            await pool.query('ROLLBACK');
+            return res.status(404).json({
+                success: false,
+                error: 'Driver not found'
+            });
+        }
+        
+        const driver = driverCheck.rows[0];
+        
+        if (!driver.disponibilite) {
+            await pool.query('ROLLBACK');
+            return res.status(400).json({
+                success: false,
+                error: 'Driver is not available'
+            });
+        }
+        
+        if (driver.statut_validation !== 'approuve') {
+            await pool.query('ROLLBACK');
+            return res.status(400).json({
+                success: false,
+                error: 'Driver is not approved'
+            });
+        }
+        
+        // Accept the delivery
+        const updateResult = await pool.query(`
+            UPDATE Livraison 
+            SET id_livreur = $1, 
+                etat_livraison = 'acceptee',
+                date_heure_debut_livraison = CURRENT_TIMESTAMP
+            WHERE id_livraison = $2 
+            AND etat_livraison = 'en_attente'
+            RETURNING *
+        `, [driverId, deliveryId]);
+        
+        if (updateResult.rowCount === 0) {
+            await pool.query('ROLLBACK');
+            return res.status(409).json({
+                success: false,
+                error: 'Failed to accept delivery - it may have been taken by another driver'
+            });
+        }
+        
+        // Mark driver as busy
+        await pool.query(`
+            UPDATE Livreur 
+            SET en_livraison = true 
+            WHERE id_livreur = $1
+        `, [driverId]);
+        
+        await pool.query('COMMIT');
+        
+        const acceptedDelivery = updateResult.rows[0];
+        
+        console.log(`✅ Delivery ${deliveryId} accepted by livreur ${driver.prenom} ${driver.nom} (ID: ${driverId})`);
+        
+        res.json({
+            success: true,
+            message: 'Delivery accepted successfully',
+            delivery: {
+                id: acceptedDelivery.id_livraison,
+                origin: acceptedDelivery.adresse_depart,
+                destination: acceptedDelivery.adresse_arrivee,
+                status: acceptedDelivery.etat_livraison,
+                price: acceptedDelivery.prix,
+                colisSize: acceptedDelivery.taille_colis,
+                coordinates: {
+                    origin: {
+                        latitude: parseFloat(acceptedDelivery.latitude_depart),
+                        longitude: parseFloat(acceptedDelivery.longitude_depart)
+                    },
+                    destination: {
+                        latitude: parseFloat(acceptedDelivery.latitude_arrivee),
+                        longitude: parseFloat(acceptedDelivery.longitude_arrivee)
+                    }
+                }
+            }
+        });
+        
+    } catch (err) {
+        await pool.query('ROLLBACK');
+        console.error("❌ Error accepting delivery:", err);
+        res.status(500).json({
+            success: false,
+            error: 'Server error while accepting delivery'
+        });
+    }
+});
+
+// Cleanup old delivery searches periodically (run every 5 minutes)
+setInterval(() => {
+    const now = new Date();
+    const cutoffTime = 10 * 60 * 1000; // 10 minutes
+    
+    for (const [searchId, searchData] of activeDeliverySearches.entries()) {
+        if (now - searchData.startTime > cutoffTime) {
+            console.log(`🧹 Cleaning up old delivery search: ${searchId}`);
+            activeDeliverySearches.delete(searchId);
+        }
+    }
+}, 5 * 60 * 1000);
+
+// Création d'une nouvelle livraison (ancienne route, gardée pour compatibilité)
 router.post('/', async (req, res) => {
     console.log("📦 Requête POST /api/livraison reçue !");
     console.log(req.body);

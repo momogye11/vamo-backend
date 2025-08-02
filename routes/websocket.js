@@ -3,8 +3,9 @@ const express = require('express');
 const WebSocket = require('ws');
 const router = express.Router();
 
-// Store pour les connexions WebSocket des chauffeurs
+// Store pour les connexions WebSocket des chauffeurs et livreurs
 const connectedDrivers = new Map();
+const connectedDeliveryDrivers = new Map();
 
 /**
  * 🚀 WEBSOCKET avec bibliothèque 'ws' (compatible React Native)
@@ -124,12 +125,20 @@ function handleWebSocketMessage(ws, message) {
             handleDriverConnect(ws, message);
             break;
 
+        case 'delivery-driver-connect':
+            handleDeliveryDriverConnect(ws, message);
+            break;
+
         case 'ping':
             handlePing(ws, message);
             break;
 
         case 'driver-disconnect':
             handleDriverDisconnect(ws, message);
+            break;
+
+        case 'delivery-driver-disconnect':
+            handleDeliveryDriverDisconnect(ws, message);
             break;
 
         default:
@@ -220,6 +229,54 @@ function handleDriverDisconnect(ws, message) {
     }
 }
 
+// 🚚 FONCTIONS pour les livreurs
+function handleDeliveryDriverConnect(ws, message) {
+    const { driverId, driverName } = message.data || message;
+
+    if (!driverId) {
+        ws.send(JSON.stringify({
+            type: 'error',
+            message: 'Delivery driver ID is required'
+        }));
+        return;
+    }
+
+    // Stocker la connexion du livreur
+    ws.driverId = driverId;
+    connectedDeliveryDrivers.set(driverId.toString(), {
+        ws: ws,
+        driverName: driverName || `Livreur ${driverId}`,
+        connectedAt: new Date(),
+        lastPing: new Date()
+    });
+
+    console.log(`✅ Delivery driver connected: ${driverName || 'Unknown'} (ID: ${driverId})`);
+    console.log(`📊 Total delivery drivers connected: ${connectedDeliveryDrivers.size}`);
+
+    // Confirmer la connexion
+    ws.send(JSON.stringify({
+        type: 'delivery-driver-connected',
+        message: 'Successfully connected to delivery driver service',
+        timestamp: new Date().toISOString()
+    }));
+}
+
+function handleDeliveryDriverDisconnect(ws, message) {
+    const { driverId } = message.data || message;
+    const targetDriverId = driverId || ws.driverId;
+
+    if (targetDriverId && connectedDeliveryDrivers.has(targetDriverId.toString())) {
+        const driverData = connectedDeliveryDrivers.get(targetDriverId.toString());
+        console.log(`👋 Delivery driver disconnecting: ${driverData.driverName} (ID: ${targetDriverId})`);
+        connectedDeliveryDrivers.delete(targetDriverId.toString());
+    }
+
+    // Close with proper code
+    if (ws.readyState === WebSocket.OPEN) {
+        ws.close(1000, 'Delivery driver disconnected');
+    }
+}
+
 // 🚀 FONCTION - Broadcast WebSocket à tous les chauffeurs disponibles
 async function notifyAllDrivers(availableDriversList, rideNotification) {
     console.log(`📡 Broadcasting via WebSocket to ${availableDriversList.length} available drivers`);
@@ -266,6 +323,45 @@ async function notifyAllDrivers(availableDriversList, rideNotification) {
     }
 
     console.log(`📊 WebSocket broadcast completed: ${notifiedCount}/${availableDriversList.length} drivers notified`);
+    return notifiedCount;
+}
+
+// 🚚 FONCTION - Broadcast WebSocket à tous les livreurs disponibles
+async function notifyAllDeliveryDrivers(availableDriversList, deliveryNotification) {
+    console.log(`📡 Broadcasting delivery via WebSocket to ${availableDriversList.length} available delivery drivers`);
+    console.log(`🔌 Currently connected delivery drivers: ${connectedDeliveryDrivers.size}`);
+
+    let notifiedCount = 0;
+
+    // Parcourir tous les livreurs disponibles
+    for (const driver of availableDriversList) {
+        const driverId = driver.id_livreur.toString();
+        
+        if (connectedDeliveryDrivers.has(driverId)) {
+            const connectionData = connectedDeliveryDrivers.get(driverId);
+            const ws = connectionData.ws;
+            
+            // Vérifier que la connexion est toujours ouverte
+            if (ws.readyState === WebSocket.OPEN) {
+                try {
+                    ws.send(JSON.stringify(deliveryNotification));
+                    notifiedCount++;
+                    console.log(`✅ Delivery notification sent to livreur: ${connectionData.driverName} (ID: ${driverId})`);
+                } catch (error) {
+                    console.error(`❌ Error sending delivery notification to livreur ${driverId}:`, error);
+                    // Remove broken connection
+                    connectedDeliveryDrivers.delete(driverId);
+                }
+            } else {
+                console.log(`⚠️ Livreur ${driverId} connection is not open (state: ${ws.readyState}), removing from connected list`);
+                connectedDeliveryDrivers.delete(driverId);
+            }
+        } else {
+            console.log(`⚠️ Livreur ${driver.nom} ${driver.prenom} (ID: ${driverId}) is available in DB but not connected via WebSocket`);
+        }
+    }
+
+    console.log(`📊 Delivery notification summary: ${notifiedCount}/${availableDriversList.length} livreurs notified`);
     return notifiedCount;
 }
 
@@ -361,6 +457,7 @@ module.exports = {
     router,
     initializeWebSocket,
     notifyAllDrivers,
+    notifyAllDeliveryDrivers,
     notifyTripTaken,
     getConnectedDriversCount: () => connectedDrivers.size,
     getConnectionStatus: () => {

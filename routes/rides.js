@@ -27,7 +27,8 @@ router.post('/search', async (req, res) => {
         paymentMethod,
         estimatedFare,
         routeDistance,
-        routeDuration
+        routeDuration,
+        silentMode
     } = req.body;
     
     try {
@@ -39,6 +40,7 @@ router.post('/search', async (req, res) => {
         console.log('  Estimated Fare:', estimatedFare);
         console.log('  Route Distance:', routeDistance);
         console.log('  Route Duration:', routeDuration);
+        console.log('  Silent Mode:', silentMode);
         
         // Extract addresses and coordinates from the frontend data structure
         const originAddress = origin?.description || origin?.address || 'Unknown origin';
@@ -107,8 +109,9 @@ router.post('/search', async (req, res) => {
                 telephone_client,
                 nom_client,
                 date_heure_depart,
-                etat_course
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CURRENT_TIMESTAMP, 'en_attente')
+                etat_course,
+                mode_silencieux
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CURRENT_TIMESTAMP, 'en_attente', $13)
             RETURNING id_course
         `, [
             originAddress,
@@ -123,6 +126,7 @@ router.post('/search', async (req, res) => {
             dbPaymentMethod,
             null, // Client phone will be set when authenticated
             null, // Client name will be set when authenticated
+            Boolean(silentMode) // Mode silencieux
         ]);
         
         const courseId = courseResult.rows[0].id_course;

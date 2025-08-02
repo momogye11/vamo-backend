@@ -65,7 +65,8 @@ CREATE TABLE Course (
         date_heure_depart TIMESTAMP,
         date_heure_arrivee TIMESTAMP,
         etat_course VARCHAR(20) DEFAULT 'en_attente',
-        est_paye BOOLEAN DEFAULT FALSE
+        est_paye BOOLEAN DEFAULT FALSE,
+        mode_silencieux BOOLEAN DEFAULT FALSE
 );
 CREATE TABLE Paiement (
     id_paiement SERIAL PRIMARY KEY,
@@ -100,6 +101,7 @@ CREATE TABLE HistoriqueCourse (
     date_heure_depart TIMESTAMP,
     date_heure_arrivee TIMESTAMP,
     etat_course VARCHAR(20),
+    mode_silencieux BOOLEAN DEFAULT FALSE,
     archived_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 -- ======================================
