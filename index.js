@@ -276,6 +276,52 @@ app.post('/api/debug/approve-chauffeur', async (req, res) => {
     }
 });
 
+// Debug endpoint to approve a livreur by phone number
+app.post('/api/debug/approve-livreur-by-phone', async (req, res) => {
+    try {
+        const { telephone } = req.body;
+        
+        if (!telephone) {
+            return res.status(400).json({
+                success: false,
+                error: 'telephone is required'
+            });
+        }
+
+        console.log(`🔧 Approving livreur with phone: ${telephone}`);
+
+        // Update livreur status to approved
+        const result = await db.query(`
+            UPDATE Livreur
+            SET statut_validation = 'approuve'
+            WHERE telephone = $1
+            RETURNING id_livreur, nom, prenom, telephone, statut_validation, disponibilite
+        `, [telephone]);
+
+        if (result.rowCount === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Livreur not found with this phone number'
+            });
+        }
+
+        console.log(`✅ Livreur ${telephone} approved successfully`);
+
+        res.json({
+            success: true,
+            message: 'Livreur approved successfully',
+            livreur: result.rows[0]
+        });
+    } catch (error) {
+        console.error('❌ Error approving livreur:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to approve livreur',
+            details: error.message
+        });
+    }
+});
+
 // Debug endpoint to check Cloudinary images for a livreur
 app.get('/api/debug/check-cloudinary-images', async (req, res) => {
     try {
