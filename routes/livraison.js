@@ -206,7 +206,7 @@ router.post('/search', async (req, res) => {
                 }
             };
             
-            // Notifier chaque livreur via WebSocket (sera implémenté dans websocket.js)
+            // Notifier chaque livreur via WebSocket (comme pour les chauffeurs)
             const { notifyAllDeliveryDrivers } = require('./websocket');
             const notifiedCount = await notifyAllDeliveryDrivers(availableDrivers.rows, deliveryNotification);
             
