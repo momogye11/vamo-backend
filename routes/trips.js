@@ -161,6 +161,40 @@ router.post('/accept', async (req, res) => {
         const trip = updateResult.rows[0];
         console.log(`✅ Trip ${tripId} accepted successfully`);
 
+        // 🚀 Récupérer les informations complètes du chauffeur
+        const driverInfo = await db.query(`
+            SELECT 
+                c.id_chauffeur,
+                c.nom as chauffeur_nom,
+                c.prenom as chauffeur_prenom,
+                c.telephone as chauffeur_telephone,
+                c.photo_selfie as chauffeur_photo,
+                c.marque_vehicule,
+                c.plaque_immatriculation,
+                c.annee_vehicule
+            FROM Chauffeur c
+            WHERE c.id_chauffeur = $1
+        `, [driverId]);
+
+        let driverData = null;
+        if (driverInfo.rowCount > 0) {
+            const driver = driverInfo.rows[0];
+            driverData = {
+                id: driver.id_chauffeur,
+                name: `${driver.chauffeur_prenom} ${driver.chauffeur_nom}`,
+                firstName: driver.chauffeur_prenom,
+                lastName: driver.chauffeur_nom,
+                phone: driver.chauffeur_telephone,
+                photo: driver.chauffeur_photo,
+                vehicle: {
+                    brand: driver.marque_vehicule || 'Véhicule',
+                    plate: driver.plaque_immatriculation || 'Non spécifiée',
+                    year: driver.annee_vehicule
+                }
+            };
+            console.log('👤 Driver info retrieved:', driverData);
+        }
+
         // 🚀 NOTIFICATION - Informer les autres chauffeurs que la course est prise (WebSocket)
         try {
             console.log('📢 Notifying other drivers that trip was taken via WebSocket...');
@@ -203,7 +237,8 @@ router.post('/accept', async (req, res) => {
                     latitude: parseFloat(trip.latitude_arrivee) || 0,
                     longitude: parseFloat(trip.longitude_arrivee) || 0
                 }
-            }
+            },
+            driver: driverData
         });
 
     } catch (err) {

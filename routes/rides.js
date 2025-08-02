@@ -261,8 +261,9 @@ router.get('/search/:searchId/status', async (req, res) => {
             // Récupérer les vraies données du chauffeur + véhicule + position
             const driverDetailsResult = await db.query(`
                 SELECT 
+                    c.id_chauffeur,
                     c.nom, c.prenom, c.telephone, c.photo_selfie,
-                    c.marque_vehicule, c.plaque_immatriculation,
+                    c.marque_vehicule, c.plaque_immatriculation, c.annee_vehicule,
                     v.marque as vehicle_make, v.modele as vehicle_model, v.couleur as vehicle_color,
                     pc.latitude, pc.longitude
                 FROM Chauffeur c
@@ -286,16 +287,19 @@ router.get('/search/:searchId/status', async (req, res) => {
             const estimatedETA = Math.max(1, Math.round(estimatedDistance / 30 * 60)); // minutes
             
             driver = {
-                id: course.id_chauffeur,
-                name: `${course.chauffeur_prenom || driverData.prenom || 'Chauffeur'} ${course.chauffeur_nom || driverData.nom || ''}`.trim(),
-                phone: course.chauffeur_telephone || driverData.telephone,
-                selfiePhoto: driverData.photo_selfie,
+                id: driverData.id_chauffeur,
+                name: `${driverData.prenom || 'Chauffeur'} ${driverData.nom || ''}`.trim(),
+                firstName: driverData.prenom || 'Chauffeur',
+                lastName: driverData.nom || '',
+                phone: driverData.telephone,
+                photo: driverData.photo_selfie,
                 rating: 4.5, // TODO: Calculate real rating from Note table
                 eta: `${estimatedETA} min`,
                 vehicle: {
                     make: driverData.vehicle_make || driverData.marque_vehicule || 'Toyota',
                     model: driverData.vehicle_model || 'Yaris',
                     color: driverData.vehicle_color || 'Noir',
+                    year: driverData.annee_vehicule,
                     licensePlate: driverData.plaque_immatriculation || 'DK-0000-XX'
                 },
                 location: {
