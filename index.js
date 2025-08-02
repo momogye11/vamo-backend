@@ -723,6 +723,70 @@ async function initializeDatabase() {
   }
 }
 
+// Debug endpoint to check Cloudinary configuration
+app.get('/api/debug/check-cloudinary-config', async (req, res) => {
+    try {
+        console.log('🔍 Checking Cloudinary configuration...');
+        
+        // Check environment variables
+        const envVars = {
+            CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME,
+            CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY,
+            CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET ? '***SET***' : 'NOT_SET'
+        };
+        
+        console.log('📋 Environment variables:', envVars);
+        
+        // Check if module is available
+        let moduleAvailable = false;
+        let moduleError = null;
+        try {
+            const cloudinary = require('cloudinary').v2;
+            moduleAvailable = true;
+            console.log('✅ Cloudinary module loaded successfully');
+        } catch (error) {
+            moduleError = error.message;
+            console.log('❌ Cloudinary module error:', error.message);
+        }
+        
+        // Check if configuration is valid
+        let configValid = false;
+        let configError = null;
+        if (moduleAvailable && process.env.CLOUDINARY_CLOUD_NAME) {
+            try {
+                const cloudinary = require('cloudinary').v2;
+                cloudinary.config({
+                    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+                    api_key: process.env.CLOUDINARY_API_KEY,
+                    api_secret: process.env.CLOUDINARY_API_SECRET
+                });
+                configValid = true;
+                console.log('✅ Cloudinary configuration valid');
+            } catch (error) {
+                configError = error.message;
+                console.log('❌ Cloudinary configuration error:', error.message);
+            }
+        }
+        
+        res.json({
+            success: true,
+            module_available: moduleAvailable,
+            module_error: moduleError,
+            env_vars: envVars,
+            config_valid: configValid,
+            config_error: configError,
+            all_ready: moduleAvailable && configValid
+        });
+    } catch (error) {
+        console.error('❌ Error checking Cloudinary config:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to check Cloudinary configuration',
+            details: error.message
+        });
+    }
+});
+
 // Debug endpoint to upload livreur's local images to Cloudinary
 app.post('/api/debug/upload-livreur-to-cloudinary', async (req, res) => {
     try {
