@@ -214,7 +214,10 @@ function handleDriverDisconnect(ws, message) {
         connectedDrivers.delete(targetDriverId.toString());
     }
 
-    ws.close();
+    // Close with proper code
+    if (ws.readyState === WebSocket.OPEN) {
+        ws.close(1000, 'Driver disconnected');
+    }
 }
 
 // 🚀 FONCTION - Broadcast WebSocket à tous les chauffeurs disponibles

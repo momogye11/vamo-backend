@@ -54,6 +54,88 @@ app.get('/api/debug/db-test', async (req, res) => {
     }
 });
 
+// Debug endpoint to see all chauffeurs
+app.get('/api/debug/chauffeurs', async (req, res) => {
+    try {
+        const result = await db.query('SELECT id_chauffeur, nom, prenom, telephone, statut_validation, disponibilite FROM Chauffeur');
+        res.json({
+            success: true,
+            chauffeurs: result.rows,
+            count: result.rowCount
+        });
+    } catch (error) {
+        console.error('❌ Error fetching chauffeurs:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch chauffeurs',
+            details: error.message
+        });
+    }
+});
+
+// Debug endpoint to see all livreurs
+app.get('/api/debug/livreurs', async (req, res) => {
+    try {
+        const result = await db.query('SELECT id_livreur, nom, prenom, telephone, statut_validation, disponibilite FROM Livreur');
+        res.json({
+            success: true,
+            livreurs: result.rows,
+            count: result.rowCount
+        });
+    } catch (error) {
+        console.error('❌ Error fetching livreurs:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch livreurs',
+            details: error.message
+        });
+    }
+});
+
+// Debug endpoint to create a test chauffeur
+app.post('/api/debug/create-test-chauffeur', async (req, res) => {
+    try {
+        const testChauffeur = {
+            nom: 'Test',
+            prenom: 'Chauffeur',
+            telephone: '+221782957169',
+            marque_vehicule: 'Toyota Corolla',
+            annee_vehicule: 2020,
+            plaque_immatriculation: 'DK-1234-AB',
+            statut_validation: 'approuve',
+            disponibilite: false
+        };
+
+        const result = await db.query(`
+            INSERT INTO Chauffeur (nom, prenom, telephone, marque_vehicule, annee_vehicule, plaque_immatriculation, statut_validation, disponibilite)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            RETURNING id_chauffeur, nom, prenom, telephone, statut_validation, disponibilite
+        `, [
+            testChauffeur.nom,
+            testChauffeur.prenom,
+            testChauffeur.telephone,
+            testChauffeur.marque_vehicule,
+            testChauffeur.annee_vehicule,
+            testChauffeur.plaque_immatriculation,
+            testChauffeur.statut_validation,
+            testChauffeur.disponibilite
+        ]);
+
+        res.json({
+            success: true,
+            message: 'Test chauffeur created successfully',
+            chauffeur: result.rows[0]
+        });
+    } catch (error) {
+        console.error('❌ Error creating test chauffeur:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to create test chauffeur',
+            details: error.message
+        });
+    }
+});
+
 // Debug accept endpoint
 app.post('/api/debug/accept', (req, res) => {
     console.log('🔧 Debug accept endpoint hit');

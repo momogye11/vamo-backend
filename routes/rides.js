@@ -65,6 +65,29 @@ router.post('/search', async (req, res) => {
         console.log('  Original duration:', routeDuration, '→ Clean:', cleanDuration);
         console.log('  Original fare:', estimatedFare, '→ Clean:', cleanFare);
         
+        // Map payment method to database format
+        const mapPaymentMethod = (method) => {
+            const normalized = (method || 'especes').toLowerCase();
+            switch (normalized) {
+                case 'orange':
+                case 'orange money':
+                case 'orange_money':
+                    return 'orange_money';
+                case 'wave':
+                case 'wave money':
+                    return 'wave';
+                case 'especes':
+                case 'cash':
+                case 'argent':
+                    return 'especes';
+                default:
+                    return 'especes';
+            }
+        };
+        
+        const dbPaymentMethod = mapPaymentMethod(paymentMethod);
+        console.log('  Payment method mapping:', paymentMethod, '→', dbPaymentMethod);
+        
         // Start database transaction
         await db.query('BEGIN');
         
@@ -97,7 +120,7 @@ router.post('/search', async (req, res) => {
             cleanDistance,
             cleanDuration, 
             cleanFare,
-            (paymentMethod || 'especes').toLowerCase(),
+            dbPaymentMethod,
             null, // Client phone will be set when authenticated
             null, // Client name will be set when authenticated
         ]);
@@ -145,7 +168,7 @@ router.post('/search', async (req, res) => {
                     distance: `${cleanDistance} km`,
                     duration: `${cleanDuration} min`,
                     price: cleanFare,
-                    paymentMethod: paymentMethod || 'especes',
+                    paymentMethod: dbPaymentMethod,
                     pickupCoords: {
                         latitude: parseFloat(originCoords.lat || originCoords.latitude) || 14.7275,
                         longitude: parseFloat(originCoords.lng || originCoords.longitude) || -17.5113
