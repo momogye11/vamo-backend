@@ -56,4 +56,50 @@ router.post('/add-livraison-fields', async (req, res) => {
     }
 });
 
+// Endpoint pour mettre un livreur en mode disponible
+router.post('/set-livreur-available', async (req, res) => {
+    try {
+        const { telephone } = req.body;
+        
+        if (!telephone) {
+            return res.status(400).json({
+                success: false,
+                error: 'Numéro de téléphone requis'
+            });
+        }
+        
+        console.log(`🔧 Setting livreur ${telephone} as available...`);
+        
+        // Mettre le livreur en mode disponible
+        const result = await pool.query(`
+            UPDATE Livreur 
+            SET disponibilite = true 
+            WHERE telephone = $1 AND statut_validation = 'approuve'
+            RETURNING id_livreur, nom, prenom, telephone, disponibilite
+        `, [telephone]);
+        
+        if (result.rowCount === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Livreur non trouvé ou non approuvé'
+            });
+        }
+        
+        console.log('✅ Livreur set as available:', result.rows[0]);
+        
+        res.json({
+            success: true,
+            message: 'Livreur mis en mode disponible',
+            livreur: result.rows[0]
+        });
+        
+    } catch (error) {
+        console.error('❌ Error setting livreur as available:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
 module.exports = router; 
