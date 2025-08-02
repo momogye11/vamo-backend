@@ -322,7 +322,7 @@ router.get('/search/:searchId/status', async (req, res) => {
         console.log(`📱 Search status update: ${status}`, {
             searchId,
             courseId: searchData.courseId,
-            ...(driver && { driverName: driver.name })
+            driver: driver
         });
         
         res.json({
