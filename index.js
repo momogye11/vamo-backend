@@ -136,6 +136,51 @@ app.post('/api/debug/create-test-chauffeur', async (req, res) => {
     }
 });
 
+// Debug endpoint to approve a livreur
+app.post('/api/debug/approve-livreur', async (req, res) => {
+    try {
+        const { id_livreur } = req.body;
+        
+        if (!id_livreur) {
+            return res.status(400).json({
+                success: false,
+                error: 'id_livreur is required'
+            });
+        }
+
+        console.log(`🔧 Approving livreur with ID: ${id_livreur}`);
+
+        const result = await db.query(`
+            UPDATE Livreur 
+            SET statut_validation = 'approuve'
+            WHERE id_livreur = $1
+            RETURNING id_livreur, nom, prenom, telephone, statut_validation, disponibilite
+        `, [id_livreur]);
+
+        if (result.rowCount === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Livreur not found'
+            });
+        }
+
+        console.log(`✅ Livreur ${id_livreur} approved successfully`);
+
+        res.json({
+            success: true,
+            message: 'Livreur approved successfully',
+            livreur: result.rows[0]
+        });
+    } catch (error) {
+        console.error('❌ Error approving livreur:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to approve livreur',
+            details: error.message
+        });
+    }
+});
+
 // Debug accept endpoint
 app.post('/api/debug/accept', (req, res) => {
     console.log('🔧 Debug accept endpoint hit');
