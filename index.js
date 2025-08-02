@@ -6,16 +6,26 @@ const db = require('./db');
 
 require('dotenv').config();
 
-// Configure Cloudinary
-cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET
-});
+// Configure Cloudinary (only if environment variables are set)
+if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
+    cloudinary.config({
+        cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+        api_key: process.env.CLOUDINARY_API_KEY,
+        api_secret: process.env.CLOUDINARY_API_SECRET
+    });
+    console.log('✅ Cloudinary configured successfully');
+} else {
+    console.log('⚠️ Cloudinary not configured - environment variables missing');
+}
 
 // Helper function to upload image to Cloudinary
 const uploadToCloudinary = async (file, folder = 'vamo') => {
     try {
+        // Check if Cloudinary is configured
+        if (!process.env.CLOUDINARY_CLOUD_NAME) {
+            throw new Error('Cloudinary not configured');
+        }
+        
         const result = await cloudinary.uploader.upload(file, {
             folder: folder,
             resource_type: 'auto'
@@ -51,6 +61,15 @@ app.get('/api/image/:type/:filename', async (req, res) => {
     try {
         const { type, filename } = req.params;
         
+        // Check if Cloudinary is configured
+        if (!process.env.CLOUDINARY_CLOUD_NAME) {
+            return res.status(503).json({
+                success: false,
+                error: 'Cloudinary not configured',
+                message: 'Image hosting service not available'
+            });
+        }
+        
         // Construct the local file path
         const localPath = `uploads/${type}/${filename}`;
         
@@ -65,7 +84,8 @@ app.get('/api/image/:type/:filename', async (req, res) => {
         console.error('❌ Error serving image:', error);
         res.status(500).json({
             success: false,
-            error: 'Failed to serve image'
+            error: 'Failed to serve image',
+            details: error.message
         });
     }
 });
