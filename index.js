@@ -1,13 +1,21 @@
 const express = require('express');
 const cors = require('cors');
-const cloudinary = require('cloudinary').v2;
+let cloudinary = null;
 const app = express();
 const db = require('./db');
 
 require('dotenv').config();
 
-// Configure Cloudinary (only if environment variables are set)
-if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
+// Try to load Cloudinary (optional)
+try {
+    cloudinary = require('cloudinary').v2;
+    console.log('✅ Cloudinary module loaded');
+} catch (error) {
+    console.log('⚠️ Cloudinary module not available:', error.message);
+}
+
+// Configure Cloudinary (only if available and environment variables are set)
+if (cloudinary && process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
     cloudinary.config({
         cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
         api_key: process.env.CLOUDINARY_API_KEY,
@@ -15,12 +23,17 @@ if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && proce
     });
     console.log('✅ Cloudinary configured successfully');
 } else {
-    console.log('⚠️ Cloudinary not configured - environment variables missing');
+    console.log('⚠️ Cloudinary not configured - module or environment variables missing');
 }
 
 // Helper function to upload image to Cloudinary
 const uploadToCloudinary = async (file, folder = 'vamo') => {
     try {
+        // Check if Cloudinary is available
+        if (!cloudinary) {
+            throw new Error('Cloudinary module not available');
+        }
+        
         // Check if Cloudinary is configured
         if (!process.env.CLOUDINARY_CLOUD_NAME) {
             throw new Error('Cloudinary not configured');
@@ -60,6 +73,15 @@ app.use('/uploads', express.static('uploads'));
 app.get('/api/image/:type/:filename', async (req, res) => {
     try {
         const { type, filename } = req.params;
+        
+        // Check if Cloudinary is available
+        if (!cloudinary) {
+            return res.status(503).json({
+                success: false,
+                error: 'Cloudinary module not available',
+                message: 'Image hosting service not available'
+            });
+        }
         
         // Check if Cloudinary is configured
         if (!process.env.CLOUDINARY_CLOUD_NAME) {
