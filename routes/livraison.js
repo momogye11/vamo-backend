@@ -124,8 +124,13 @@ router.post('/search', async (req, res) => {
                 taille_colis,
                 instructions,
                 id_type,
-                etat_livraison
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'en_attente')
+                etat_livraison,
+                distance_km,
+                duree_estimee_min,
+                mode_paiement,
+                description_colis,
+                date_heure_demande
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'en_attente', $11, $12, $13, $14, CURRENT_TIMESTAMP)
             RETURNING id_livraison
         `, [
             originAddress,
@@ -137,17 +142,15 @@ router.post('/search', async (req, res) => {
             cleanFare,
             colisSize || 'M',
             instructions || '',
-            dbDeliveryType
+            dbDeliveryType,
+            cleanDistance,
+            cleanDuration,
+            dbPaymentMethod,
+            description || 'Colis à livrer'
         ]);
         
         const deliveryId = deliveryResult.rows[0].id_livraison;
         const searchId = `delivery_search_${deliveryId}_${Date.now()}`;
-        
-        // Create payment record for the delivery
-        await pool.query(`
-            INSERT INTO PaiementLivraison (id_livraison, mode)
-            VALUES ($1, $2)
-        `, [deliveryId, dbPaymentMethod]);
         
         // Store search session data
         activeDeliverySearches.set(searchId, {
