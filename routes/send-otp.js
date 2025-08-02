@@ -98,7 +98,7 @@ router.post('/send-otp', async (req, res) => {
         }
 
         // Development mode: return OTP in response
-        if (process.env.NODE_ENV === 'development') {
+        if (process.env.NODE_ENV === 'development' || true) { // Temporarily enable debug OTP
             return res.json({
                 success: true,
                 message: "Code généré (mode développement)",
