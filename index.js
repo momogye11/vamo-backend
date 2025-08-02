@@ -230,6 +230,70 @@ app.post('/api/debug/create-test-chauffeur', async (req, res) => {
     }
 });
 
+// Debug endpoint to check Cloudinary images for a livreur
+app.get('/api/debug/check-cloudinary-images', async (req, res) => {
+    try {
+        const { id_livreur } = req.query;
+        
+        if (!id_livreur) {
+            return res.status(400).json({
+                success: false,
+                error: 'id_livreur is required'
+            });
+        }
+
+        console.log(`🔍 Checking Cloudinary images for livreur ID: ${id_livreur}`);
+
+        // Get current livreur data
+        const result = await db.query(`
+            SELECT photo_cni, photo_selfie, photo_vehicule, nom, prenom
+            FROM Livreur 
+            WHERE id_livreur = $1
+        `, [id_livreur]);
+
+        if (result.rowCount === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Livreur not found'
+            });
+        }
+
+        const livreur = result.rows[0];
+        
+        // Check if Cloudinary is configured
+        let cloudinaryAvailable = false;
+        try {
+            const cloudinary = require('cloudinary').v2;
+            cloudinaryAvailable = !!process.env.CLOUDINARY_CLOUD_NAME;
+        } catch (error) {
+            cloudinaryAvailable = false;
+        }
+
+        res.json({
+            success: true,
+            livreur: {
+                id_livreur,
+                nom: livreur.nom,
+                prenom: livreur.prenom,
+                photos: {
+                    cni: livreur.photo_cni,
+                    selfie: livreur.photo_selfie,
+                    vehicule: livreur.photo_vehicule
+                }
+            },
+            cloudinary_available: cloudinaryAvailable,
+            message: 'Current image URLs retrieved'
+        });
+    } catch (error) {
+        console.error('❌ Error checking Cloudinary images:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to check Cloudinary images',
+            details: error.message
+        });
+    }
+});
+
 // Debug endpoint to update livreur images with working URLs
 app.post('/api/debug/update-livreur-images', async (req, res) => {
     try {
