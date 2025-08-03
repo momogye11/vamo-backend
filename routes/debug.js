@@ -56,6 +56,42 @@ router.post('/add-livraison-fields', async (req, res) => {
     }
 });
 
+// Endpoint pour ajouter la colonne en_livraison à la table Livreur
+router.post('/add-en-livraison-column', async (req, res) => {
+    try {
+        console.log('🔧 Adding en_livraison column to Livreur table...');
+        
+        // Ajouter la colonne en_livraison
+        await pool.query(`
+            ALTER TABLE Livreur 
+            ADD COLUMN IF NOT EXISTS en_livraison BOOLEAN DEFAULT FALSE
+        `);
+        
+        // Vérifier la structure de la table
+        const tableInfo = await pool.query(`
+            SELECT column_name, data_type, is_nullable, column_default
+            FROM information_schema.columns 
+            WHERE table_name = 'livreur' 
+            ORDER BY ordinal_position
+        `);
+        
+        console.log('✅ Successfully added en_livraison column to Livreur table');
+        
+        res.json({
+            success: true,
+            message: 'Colonne en_livraison ajoutée avec succès à la table Livreur',
+            tableStructure: tableInfo.rows
+        });
+        
+    } catch (error) {
+        console.error('❌ Error adding en_livraison column:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
 // Endpoint pour mettre un livreur en mode disponible
 router.post('/set-livreur-available', async (req, res) => {
     try {
