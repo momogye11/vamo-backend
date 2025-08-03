@@ -510,59 +510,74 @@ router.post('/complete', async (req, res) => {
     }
 });
 
-// Cancel trip
+// Cancel trip by client
 router.post('/cancel', async (req, res) => {
-    const { driverId, tripId, reason } = req.body;
-
-    if (!driverId || !tripId) {
-        return res.status(400).json({
-            success: false,
-            error: 'driverId et tripId sont requis'
-        });
-    }
-
+    const { tripId, reason = 'Client cancellation' } = req.body;
+    
     try {
-        console.log(`🚗 Cancelling trip ${tripId}, reason: ${reason || 'No reason provided'}`);
-
+        console.log(`🚫 Client canceling trip ${tripId}`);
+        
+        // Start database transaction
         await db.query('BEGIN');
-
-        // Get current trip status
-        const currentTrip = await db.query(`
-            SELECT etat_course 
+        
+        // Check if trip exists and is cancellable
+        const tripCheck = await db.query(`
+            SELECT etat_course, id_chauffeur 
             FROM Course 
-            WHERE id_course = $1 AND id_chauffeur = $2
-        `, [tripId, driverId]);
-
-        if (currentTrip.rowCount === 0) {
+            WHERE id_course = $1
+        `, [tripId]);
+        
+        if (tripCheck.rowCount === 0) {
             await db.query('ROLLBACK');
             return res.status(404).json({
                 success: false,
-                error: 'Course non trouvée'
+                error: 'Trip not found'
             });
         }
-
-        // Cancel trip
+        
+        const trip = tripCheck.rows[0];
+        
+        // Only allow cancellation if trip is still in progress
+        if (trip.etat_course === 'terminee' || trip.etat_course === 'annulee') {
+            await db.query('ROLLBACK');
+            return res.status(409).json({
+                success: false,
+                error: 'Trip cannot be cancelled'
+            });
+        }
+        
+        // Cancel the trip
         await db.query(`
             UPDATE Course 
-            SET etat_course = 'annulee', id_chauffeur = NULL
-            WHERE id_course = $1 AND id_chauffeur = $2
-        `, [tripId, driverId]);
-
+            SET etat_course = 'annulee',
+                date_heure_fin = CURRENT_TIMESTAMP
+            WHERE id_course = $1
+        `, [tripId]);
+        
+        // If driver was assigned, mark them as available again
+        if (trip.id_chauffeur) {
+            await db.query(`
+                UPDATE Chauffeur 
+                SET disponibilite = true 
+                WHERE id_chauffeur = $1
+            `, [trip.id_chauffeur]);
+        }
+        
         await db.query('COMMIT');
-
+        
         console.log(`✅ Trip ${tripId} cancelled successfully`);
-
+        
         res.json({
             success: true,
-            message: 'Course annulée avec succès'
+            message: 'Trip cancelled successfully'
         });
-
+        
     } catch (err) {
         await db.query('ROLLBACK');
         console.error("❌ Error cancelling trip:", err);
         res.status(500).json({
             success: false,
-            error: 'Erreur serveur'
+            error: 'Server error while cancelling trip'
         });
     }
 });
