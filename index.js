@@ -59,15 +59,6 @@ const uploadToCloudinary = async (file, folder = 'vamo') => {
 app.use(cors());
 app.use(express.json());
 
-// Test endpoint to check if server is working
-app.get('/api/test', (req, res) => {
-    res.json({
-        success: true,
-        message: 'Server is working',
-        timestamp: new Date().toISOString()
-    });
-});
-
 // Request logging middleware
 app.use((req, res, next) => {
     if (req.path.includes('/trips/accept')) {

@@ -584,10 +584,10 @@ router.post('/accept', async (req, res) => {
             });
         }
         
-        // Mark driver as busy (not available for new deliveries)
+        // Mark driver as busy
         await pool.query(`
             UPDATE Livreur 
-            SET disponibilite = false 
+            SET en_livraison = true 
             WHERE id_livreur = $1
         `, [driverId]);
         
@@ -626,77 +626,6 @@ router.post('/accept', async (req, res) => {
         res.status(500).json({
             success: false,
             error: 'Server error while accepting delivery'
-        });
-    }
-});
-
-// Cancel delivery by client
-router.post('/cancel', async (req, res) => {
-    const { deliveryId, reason = 'Client cancellation' } = req.body;
-    
-    try {
-        console.log(`🚫 Client canceling delivery ${deliveryId}`);
-        
-        // Start database transaction
-        await pool.query('BEGIN');
-        
-        // Check if delivery exists and is cancellable
-        const deliveryCheck = await pool.query(`
-            SELECT etat_livraison, id_livreur 
-            FROM Livraison 
-            WHERE id_livraison = $1
-        `, [deliveryId]);
-        
-        if (deliveryCheck.rowCount === 0) {
-            await pool.query('ROLLBACK');
-            return res.status(404).json({
-                success: false,
-                error: 'Delivery not found'
-            });
-        }
-        
-        const delivery = deliveryCheck.rows[0];
-        
-        // Only allow cancellation if delivery is still in progress
-        if (delivery.etat_livraison === 'terminee' || delivery.etat_livraison === 'annulee') {
-            await pool.query('ROLLBACK');
-            return res.status(409).json({
-                success: false,
-                error: 'Delivery cannot be cancelled'
-            });
-        }
-        
-        // Cancel the delivery
-        await pool.query(`
-            UPDATE Livraison 
-            SET etat_livraison = 'annulee'
-            WHERE id_livraison = $1
-        `, [deliveryId]);
-        
-        // If delivery driver was assigned, mark them as available again
-        if (delivery.id_livreur) {
-            await pool.query(`
-                UPDATE Livreur 
-                SET disponibilite = true 
-                WHERE id_livreur = $1
-            `, [delivery.id_livreur]);
-        }
-        
-        await pool.query('COMMIT');
-        
-        console.log(`✅ Delivery ${deliveryId} cancelled successfully`);
-        
-        res.json({
-            success: true,
-            message: 'Delivery cancelled successfully'
-        });
-        
-    } catch (err) {
-        await pool.query('ROLLBACK');
-        console.error("❌ Error cancelling delivery:", err);
-        res.status(500).json({
-            success: false,
-            error: 'Server error while cancelling delivery'
         });
     }
 });
