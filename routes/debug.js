@@ -93,6 +93,41 @@ router.get('/approved-livreurs', async (req, res) => {
     }
 });
 
+// Add en_livraison column to Livreur table
+router.post('/add-en-livraison-column', async (req, res) => {
+    try {
+        console.log('🔧 Adding en_livraison column to Livreur table...');
+        
+        // Add the column
+        await pool.query(`
+            ALTER TABLE Livreur ADD COLUMN IF NOT EXISTS en_livraison BOOLEAN DEFAULT FALSE
+        `);
+        
+        // Update existing livreurs
+        await pool.query(`
+            UPDATE Livreur SET en_livraison = FALSE WHERE en_livraison IS NULL
+        `);
+        
+        // Verify the column was added
+        const verifyResult = await pool.query(`
+            SELECT column_name, data_type, is_nullable, column_default 
+            FROM information_schema.columns 
+            WHERE table_name = 'livreur' AND column_name = 'en_livraison'
+        `);
+        
+        console.log('✅ en_livraison column added successfully');
+        
+        res.json({
+            success: true,
+            message: 'en_livraison column added successfully',
+            verification: verifyResult.rows[0]
+        });
+    } catch (error) {
+        console.error('❌ Error adding en_livraison column:', error);
+        res.status(500).json({ success: false, error: 'Database error' });
+    }
+});
+
 // Endpoint pour mettre un livreur en mode disponible
 router.post('/set-livreur-available', async (req, res) => {
     try {
