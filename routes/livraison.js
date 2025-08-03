@@ -49,6 +49,10 @@ router.post('/search', async (req, res) => {
         const originAddress = origin?.description || origin?.address || origin?.start_address || 'Unknown origin';
         const destinationAddress = destination?.description || destination?.address || destination?.end_address || 'Unknown destination';
         
+        console.log('🔍 DEBUG - Raw data received:');
+        console.log('  Origin raw:', JSON.stringify(origin, null, 2));
+        console.log('  Destination raw:', JSON.stringify(destination, null, 2));
+        
         // Handle different coordinate formats
         let originCoords = origin?.location || origin?.coordinates || origin?.start_location;
         let destCoords = destination?.location || destination?.coordinates || destination?.end_location;

@@ -934,3 +934,13 @@ app.post('/api/debug/upload-livreur-to-cloudinary', async (req, res) => {
     }
 });
 
+// Test endpoint
+app.get('/api/test', (req, res) => {
+    res.json({ 
+        success: true, 
+        message: 'Server is running!',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime()
+    });
+});
+
