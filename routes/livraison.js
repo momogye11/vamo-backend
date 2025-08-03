@@ -615,7 +615,7 @@ router.post('/accept', async (req, res) => {
             UPDATE Livraison 
             SET id_livreur = $1, 
                 etat_livraison = 'acceptee',
-                date_heure_debut_livraison = CURRENT_TIMESTAMP
+                date_heure_depart = CURRENT_TIMESTAMP
             WHERE id_livraison = $2 
             AND etat_livraison = 'en_attente'
             RETURNING *
