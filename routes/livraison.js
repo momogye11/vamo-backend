@@ -44,10 +44,10 @@ router.post('/search', async (req, res) => {
         console.log('  Colis Size:', colisSize);
         
         // Extract addresses and coordinates from the frontend data structure
-        const originAddress = origin?.description || origin?.address || 'Unknown origin';
-        const destinationAddress = destination?.description || destination?.address || 'Unknown destination';
-        const originCoords = origin?.location || origin?.coordinates;
-        const destCoords = destination?.location || destination?.coordinates;
+        const originAddress = origin?.description || origin?.address || origin?.start_address || 'Unknown origin';
+        const destinationAddress = destination?.description || destination?.address || destination?.end_address || 'Unknown destination';
+        const originCoords = origin?.location || origin?.coordinates || origin?.start_location;
+        const destCoords = destination?.location || destination?.coordinates || destination?.end_location;
         
         // Validate coordinates are present
         if (!originCoords || !destCoords) {
