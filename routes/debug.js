@@ -128,6 +128,31 @@ router.post('/add-en-livraison-column', async (req, res) => {
     }
 });
 
+// Check Livraison table structure
+router.get('/check-livraison-structure', async (req, res) => {
+    try {
+        console.log('🔍 Checking Livraison table structure...');
+        
+        const result = await pool.query(`
+            SELECT column_name, data_type, is_nullable, column_default
+            FROM information_schema.columns 
+            WHERE table_name = 'livraison' 
+            ORDER BY ordinal_position
+        `);
+        
+        console.log('✅ Livraison table structure retrieved');
+        
+        res.json({
+            success: true,
+            message: 'Livraison table structure',
+            columns: result.rows
+        });
+    } catch (error) {
+        console.error('❌ Error checking Livraison table structure:', error);
+        res.status(500).json({ success: false, error: 'Database error' });
+    }
+});
+
 // Endpoint pour mettre un livreur en mode disponible
 router.post('/set-livreur-available', async (req, res) => {
     try {
