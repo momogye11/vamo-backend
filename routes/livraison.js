@@ -46,8 +46,18 @@ router.post('/search', async (req, res) => {
         // Extract addresses and coordinates from the frontend data structure
         const originAddress = origin?.description || origin?.address || origin?.start_address || 'Unknown origin';
         const destinationAddress = destination?.description || destination?.address || destination?.end_address || 'Unknown destination';
-        const originCoords = origin?.location || origin?.coordinates || origin?.start_location;
-        const destCoords = destination?.location || destination?.coordinates || destination?.end_location;
+        
+        // Handle different coordinate formats
+        let originCoords = origin?.location || origin?.coordinates || origin?.start_location;
+        let destCoords = destination?.location || destination?.coordinates || destination?.end_location;
+        
+        // If coordinates are directly in the object (latitude/longitude format)
+        if (!originCoords && origin?.latitude && origin?.longitude) {
+            originCoords = { lat: origin.latitude, lng: origin.longitude };
+        }
+        if (!destCoords && destination?.latitude && destination?.longitude) {
+            destCoords = { lat: destination.latitude, lng: destination.longitude };
+        }
         
         // Validate coordinates are present
         if (!originCoords || !destCoords) {
