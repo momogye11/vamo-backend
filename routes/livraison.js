@@ -734,4 +734,43 @@ router.post('/', async (req, res) => {
     }
 });
 
+// Cancel a delivery (POST endpoint for frontend compatibility)
+router.post('/cancel', async (req, res) => {
+    const { deliveryId } = req.body;
+    
+    try {
+        console.log(`❌ Cancelling delivery: ${deliveryId}`);
+        
+        // Update delivery status to cancelled
+        await pool.query(`
+            UPDATE Livraison 
+            SET etat_livraison = 'annulee' 
+            WHERE id_livraison = $1 AND etat_livraison = 'en_attente'
+        `, [deliveryId]);
+        
+        // Remove from active searches if exists
+        for (const [searchId, searchData] of activeDeliverySearches.entries()) {
+            if (searchData.deliveryId === deliveryId) {
+                console.log(`🧹 Removing delivery search: ${searchId}`);
+                activeDeliverySearches.delete(searchId);
+                break;
+            }
+        }
+        
+        console.log(`✅ Delivery cancelled: ${deliveryId}`);
+        
+        res.json({
+            success: true,
+            message: 'Delivery cancelled successfully'
+        });
+        
+    } catch (err) {
+        console.error("❌ Error cancelling delivery:", err);
+        res.status(500).json({
+            success: false,
+            error: 'Erreur serveur'
+        });
+    }
+});
+
 module.exports = router;
