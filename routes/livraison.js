@@ -51,12 +51,18 @@ router.post('/search', async (req, res) => {
         let originCoords = origin?.location || origin?.coordinates || origin?.start_location;
         let destCoords = destination?.location || destination?.coordinates || destination?.end_location;
         
+        console.log('🔍 Debug coordinate extraction:');
+        console.log('  Origin:', { hasLocation: !!origin?.location, hasCoordinates: !!origin?.coordinates, hasStartLocation: !!origin?.start_location, hasLatLng: !!(origin?.latitude && origin?.longitude) });
+        console.log('  Destination:', { hasLocation: !!destination?.location, hasCoordinates: !!destination?.coordinates, hasEndLocation: !!destination?.end_location, hasLatLng: !!(destination?.latitude && destination?.longitude) });
+        
         // If coordinates are directly in the object (latitude/longitude format)
         if (!originCoords && origin?.latitude && origin?.longitude) {
             originCoords = { lat: origin.latitude, lng: origin.longitude };
+            console.log('✅ Extracted origin coords from latitude/longitude:', originCoords);
         }
         if (!destCoords && destination?.latitude && destination?.longitude) {
             destCoords = { lat: destination.latitude, lng: destination.longitude };
+            console.log('✅ Extracted destination coords from latitude/longitude:', destCoords);
         }
         
         // Validate coordinates are present
