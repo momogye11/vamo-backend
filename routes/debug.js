@@ -128,6 +128,43 @@ router.post('/add-date-heure-fin-column', async (req, res) => {
     }
 });
 
+// Endpoint pour lister tous les livreurs approuvés
+router.get('/approved-livreurs', async (req, res) => {
+    try {
+        console.log('🔍 Fetching all approved livreurs...');
+        
+        const result = await pool.query(`
+            SELECT 
+                id_livreur,
+                nom,
+                prenom,
+                telephone,
+                type_vehicule,
+                statut_validation,
+                disponibilite,
+                date_creation
+            FROM Livreur 
+            WHERE statut_validation = 'approuve'
+            ORDER BY id_livreur
+        `);
+        
+        console.log(`✅ Found ${result.rowCount} approved livreurs`);
+        
+        res.json({
+            success: true,
+            message: `Found ${result.rowCount} approved livreurs`,
+            livreurs: result.rows
+        });
+        
+    } catch (error) {
+        console.error('❌ Error fetching approved livreurs:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
 // Endpoint pour mettre un livreur en mode disponible
 router.post('/set-livreur-available', async (req, res) => {
     try {
