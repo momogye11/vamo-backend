@@ -629,10 +629,10 @@ router.post('/accept', async (req, res) => {
             });
         }
         
-        // Mark driver as busy
+        // Mark driver as busy (temporary fix - use disponibilite instead of en_livraison)
         await pool.query(`
             UPDATE Livreur 
-            SET en_livraison = true 
+            SET disponibilite = false 
             WHERE id_livreur = $1
         `, [driverId]);
         
