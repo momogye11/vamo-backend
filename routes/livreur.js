@@ -522,4 +522,60 @@ router.get('/:id/profile', async (req, res) => {
     }
 });
 
+// Update livreur availability status (online/offline)
+router.post('/availability', async (req, res) => {
+    try {
+        const { livreurId, isAvailable } = req.body;
+        
+        console.log(`🛵 Updating livreur ${livreurId} availability: ${isAvailable ? 'Online' : 'Offline'}`);
+        
+        if (!livreurId) {
+            return res.status(400).json({
+                success: false,
+                error: 'ID livreur requis'
+            });
+        }
+
+        // Vérifier si le livreur existe
+        const livreurCheck = await db.query(
+            'SELECT id_livreur, nom, prenom FROM Livreur WHERE id_livreur = $1',
+            [livreurId]
+        );
+
+        if (livreurCheck.rowCount === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Livreur non trouvé'
+            });
+        }
+
+        // Mettre à jour la disponibilité
+        await db.query(
+            'UPDATE Livreur SET disponibilite = $1 WHERE id_livreur = $2',
+            [isAvailable, livreurId]
+        );
+
+        const livreur = livreurCheck.rows[0];
+        console.log(`✅ Livreur ${livreurId} (${livreur.nom} ${livreur.prenom}) availability updated: ${isAvailable ? 'Online' : 'Offline'}`);
+
+        res.json({
+            success: true,
+            message: `Livreur ${livreur.nom} ${livreur.prenom} is now ${isAvailable ? 'online' : 'offline'}`,
+            data: {
+                livreurId: parseInt(livreurId),
+                isAvailable: isAvailable,
+                nom: livreur.nom,
+                prenom: livreur.prenom
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Error updating livreur availability:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Erreur serveur lors de la mise à jour de la disponibilité'
+        });
+    }
+});
+
 module.exports = router;
