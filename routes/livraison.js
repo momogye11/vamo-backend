@@ -584,12 +584,8 @@ router.post('/accept', async (req, res) => {
             });
         }
         
-        // Mark driver as busy
-        await pool.query(`
-            UPDATE Livreur 
-            SET en_livraison = true 
-            WHERE id_livreur = $1
-        `, [driverId]);
+        // Note: We don't need to mark driver as busy since we don't have en_livraison column
+        // The driver's availability is managed through the disponibilite field
         
         await pool.query('COMMIT');
         
