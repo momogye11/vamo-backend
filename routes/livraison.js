@@ -43,6 +43,8 @@ router.post('/search', async (req, res) => {
         console.log('  Route Duration:', routeDuration);
         console.log('  Colis Size:', colisSize);
         
+        console.log('🔍 DEBUG - About to extract coordinates...');
+        
         // Extract addresses and coordinates from the frontend data structure
         const originAddress = origin?.description || origin?.address || origin?.start_address || 'Unknown origin';
         const destinationAddress = destination?.description || destination?.address || destination?.end_address || 'Unknown destination';
@@ -73,6 +75,10 @@ router.post('/search', async (req, res) => {
                 error: 'Coordinates are required for delivery'
             });
         }
+        
+        console.log('✅ DEBUG - Coordinates extracted successfully:');
+        console.log('  Origin coords:', originCoords);
+        console.log('  Destination coords:', destCoords);
         
         // Validate required fields
         if (!origin || !destination || !estimatedFare) {
