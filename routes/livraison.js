@@ -584,10 +584,10 @@ router.post('/accept', async (req, res) => {
             });
         }
         
-        // Mark driver as currently delivering
+        // Mark driver as busy (not available for new deliveries)
         await pool.query(`
             UPDATE Livreur 
-            SET en_livraison = true 
+            SET disponibilite = false 
             WHERE id_livreur = $1
         `, [driverId]);
         
