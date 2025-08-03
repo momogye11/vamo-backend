@@ -92,6 +92,42 @@ router.post('/add-en-livraison-column', async (req, res) => {
     }
 });
 
+// Endpoint pour ajouter la colonne date_heure_fin à la table Livraison
+router.post('/add-date-heure-fin-column', async (req, res) => {
+    try {
+        console.log('🔧 Adding date_heure_fin column to Livraison table...');
+        
+        // Ajouter la colonne date_heure_fin
+        await pool.query(`
+            ALTER TABLE Livraison 
+            ADD COLUMN IF NOT EXISTS date_heure_fin TIMESTAMP
+        `);
+        
+        // Vérifier la structure de la table
+        const tableInfo = await pool.query(`
+            SELECT column_name, data_type, is_nullable, column_default
+            FROM information_schema.columns 
+            WHERE table_name = 'livraison' 
+            ORDER BY ordinal_position
+        `);
+        
+        console.log('✅ Successfully added date_heure_fin column to Livraison table');
+        
+        res.json({
+            success: true,
+            message: 'Colonne date_heure_fin ajoutée avec succès à la table Livraison',
+            tableStructure: tableInfo.rows
+        });
+        
+    } catch (error) {
+        console.error('❌ Error adding date_heure_fin column:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
 // Endpoint pour mettre un livreur en mode disponible
 router.post('/set-livreur-available', async (req, res) => {
     try {
