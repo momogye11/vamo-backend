@@ -46,8 +46,17 @@ router.post('/search', async (req, res) => {
         // Extract addresses and coordinates from the frontend data structure
         const originAddress = origin?.description || origin?.address || 'Unknown origin';
         const destinationAddress = destination?.description || destination?.address || 'Unknown destination';
-        const originCoords = origin?.location || origin?.coordinates || { lat: 14.7275, lng: -17.5113 };
-        const destCoords = destination?.location || destination?.coordinates || { lat: 14.7167, lng: -17.4677 };
+        const originCoords = origin?.location || origin?.coordinates;
+        const destCoords = destination?.location || destination?.coordinates;
+        
+        // Validate coordinates are present
+        if (!originCoords || !destCoords) {
+            console.error('❌ Missing coordinates:', { originCoords, destCoords });
+            return res.status(400).json({
+                success: false,
+                error: 'Coordinates are required for delivery'
+            });
+        }
         
         // Validate required fields
         if (!origin || !destination || !estimatedFare) {
@@ -135,10 +144,10 @@ router.post('/search', async (req, res) => {
         `, [
             originAddress,
             destinationAddress,
-            parseFloat(originCoords.lat || originCoords.latitude) || 14.7275,
-            parseFloat(originCoords.lng || originCoords.longitude) || -17.5113,
-            parseFloat(destCoords.lat || destCoords.latitude) || 14.7167,
-            parseFloat(destCoords.lng || destCoords.longitude) || -17.4677,
+            parseFloat(originCoords.lat || originCoords.latitude),
+            parseFloat(originCoords.lng || originCoords.longitude),
+            parseFloat(destCoords.lat || destCoords.latitude),
+            parseFloat(destCoords.lng || destCoords.longitude),
             cleanFare,
             colisSize || 'M',
             instructions || '',
@@ -196,12 +205,12 @@ router.post('/search', async (req, res) => {
                     colisSize: colisSize || 'M',
                     deliveryType: deliveryType,
                     pickupCoords: {
-                        latitude: parseFloat(originCoords.lat || originCoords.latitude) || 14.7275,
-                        longitude: parseFloat(originCoords.lng || originCoords.longitude) || -17.5113
+                        latitude: parseFloat(originCoords.lat || originCoords.latitude),
+                        longitude: parseFloat(originCoords.lng || originCoords.longitude)
                     },
                     destinationCoords: {
-                        latitude: parseFloat(destCoords.lat || destCoords.latitude) || 14.7167,
-                        longitude: parseFloat(destCoords.lng || destCoords.longitude) || -17.4677
+                        latitude: parseFloat(destCoords.lat || destCoords.latitude),
+                        longitude: parseFloat(destCoords.lng || destCoords.longitude)
                     }
                 }
             };
