@@ -669,8 +669,7 @@ router.post('/cancel', async (req, res) => {
         // Cancel the delivery
         await pool.query(`
             UPDATE Livraison 
-            SET etat_livraison = 'annulee',
-                date_heure_fin = CURRENT_TIMESTAMP
+            SET etat_livraison = 'annulee'
             WHERE id_livraison = $1
         `, [deliveryId]);
         

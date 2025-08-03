@@ -549,8 +549,7 @@ router.post('/cancel', async (req, res) => {
         // Cancel the trip
         await db.query(`
             UPDATE Course 
-            SET etat_course = 'annulee',
-                date_heure_fin = CURRENT_TIMESTAMP
+            SET etat_course = 'annulee'
             WHERE id_course = $1
         `, [tripId]);
         
