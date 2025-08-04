@@ -550,6 +550,17 @@ try {
     console.error('❌ Error loading locations routes:', error);
 }
 
+// Load ratings routes
+console.log('Loading ratings routes...');
+try {
+    const ratingsRouter = require('./routes/ratings');
+    app.use('/api/ratings', ratingsRouter);
+    console.log('✅ Ratings routes loaded successfully');
+} catch (error) {
+    console.error('❌ Error loading ratings routes:', error);
+    console.error('❌ Stack trace:', error.stack);
+}
+
 // Debug the places routes
 console.log('Loading places routes...');
 try {
@@ -590,6 +601,16 @@ try {
     console.log('✅ Rides routes loaded successfully');
 } catch (error) {
     console.error('❌ Error loading rides routes:', error);
+}
+
+// Load notifications routes for push notifications
+console.log('Loading notifications routes...');
+try {
+    const notificationsRouter = require('./routes/notifications');
+    app.use('/api/notifications', notificationsRouter);
+    console.log('✅ Notifications routes loaded successfully');
+} catch (error) {
+    console.error('❌ Error loading notifications routes:', error);
 }
 
 

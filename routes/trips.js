@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
+const pushNotificationService = require('../services/pushNotificationService');
 
 // Get available trips for drivers (simple polling)
 router.get('/available/:driverId', async (req, res) => {
@@ -560,6 +561,471 @@ router.post('/cancel', async (req, res) => {
     } catch (err) {
         await db.query('ROLLBACK');
         console.error("❌ Error cancelling trip:", err);
+        res.status(500).json({
+            success: false,
+            error: 'Erreur serveur'
+        });
+    }
+});
+
+// API spécifique pour l'arrivée au pickup avec notification WebSocket
+router.post('/arrive-pickup', async (req, res) => {
+    const { driverId, tripId } = req.body;
+
+    if (!driverId || !tripId) {
+        return res.status(400).json({
+            success: false,
+            error: 'driverId et tripId sont requis'
+        });
+    }
+
+    try {
+        console.log(`🚗 Driver ${driverId} arrived at pickup for trip ${tripId}`);
+
+        await db.query('BEGIN');
+
+        // Vérifier que la course existe et appartient au chauffeur
+        const currentTrip = await db.query(`
+            SELECT etat_course, id_client, nom_client, telephone_client
+            FROM Course 
+            WHERE id_course = $1 AND id_chauffeur = $2
+        `, [tripId, driverId]);
+
+        if (currentTrip.rowCount === 0) {
+            await db.query('ROLLBACK');
+            return res.status(404).json({
+                success: false,
+                error: 'Course non trouvée ou non assignée à ce chauffeur'
+            });
+        }
+
+        const trip = currentTrip.rows[0];
+
+        // Vérifier que le statut permet la transition vers 'arrivee_pickup'
+        if (!['acceptee', 'en_route_pickup'].includes(trip.etat_course)) {
+            await db.query('ROLLBACK');
+            return res.status(400).json({
+                success: false,
+                error: `Impossible de marquer comme arrivé depuis l'état: ${trip.etat_course}`
+            });
+        }
+
+        // Mettre à jour le statut de la course à 'arrivee_pickup'
+        const updateResult = await db.query(`
+            UPDATE Course 
+            SET etat_course = 'arrivee_pickup', 
+                date_heure_arrivee_pickup = CURRENT_TIMESTAMP 
+            WHERE id_course = $1 AND id_chauffeur = $2
+            RETURNING *
+        `, [tripId, driverId]);
+
+        if (updateResult.rowCount === 0) {
+            await db.query('ROLLBACK');
+            return res.status(409).json({
+                success: false,
+                error: 'Impossible de mettre à jour la course'
+            });
+        }
+
+        // Récupérer les informations du chauffeur pour la notification
+        const driverInfo = await db.query(`
+            SELECT nom, prenom, telephone, marque_vehicule, plaque_immatriculation
+            FROM Chauffeur 
+            WHERE id_chauffeur = $1
+        `, [driverId]);
+
+        let driverData = null;
+        if (driverInfo.rowCount > 0) {
+            const driver = driverInfo.rows[0];
+            driverData = {
+                id: driverId,
+                name: `${driver.prenom} ${driver.nom}`,
+                phone: driver.telephone,
+                vehicle: {
+                    brand: driver.marque_vehicule || 'Véhicule',
+                    plate: driver.plaque_immatriculation || 'Non spécifiée'
+                }
+            };
+        }
+
+        await db.query('COMMIT');
+
+        // 🚀 NOTIFICATION WEBSOCKET AU CLIENT
+        try {
+            const { notifyClient } = require('./websocket');
+            
+            const notification = {
+                type: 'driver_arrived_pickup',
+                data: {
+                    tripId: tripId,
+                    message: 'Votre chauffeur est arrivé au point de récupération',
+                    driver: driverData,
+                    timestamp: new Date().toISOString()
+                }
+            };
+
+            // Notifier le client (si connecté via WebSocket)
+            await notifyClient(trip.id_client, notification);
+            console.log(`✅ Client ${trip.id_client} notified of driver arrival`);
+            
+        } catch (wsError) {
+            console.error('⚠️ WebSocket notification failed (trip status updated):', wsError.message);
+            // Ne pas faire échouer la requête si la notification échoue
+        }
+
+        // 📱 PUSH NOTIFICATION AU CLIENT
+        try {
+            await pushNotificationService.sendTripStatusNotification(
+                trip.id_client,
+                tripId,
+                'driver_arrived',
+                {
+                    name: `${driverData.prenom} ${driverData.nom}`,
+                    phone: driverData.telephone,
+                    vehicle: driverData.vehicule_info
+                }
+            );
+            console.log(`✅ Push notification sent to client ${trip.id_client} for driver arrival`);
+        } catch (pushError) {
+            console.error('⚠️ Push notification failed (trip status updated):', pushError.message);
+            // Ne pas faire échouer la requête si la notification échoue
+        }
+
+        console.log(`✅ Trip ${tripId} marked as arrived at pickup`);
+
+        res.json({
+            success: true,
+            message: 'Arrivée au pickup confirmée',
+            trip: {
+                id: tripId,
+                status: 'arrivee_pickup',
+                arrivedAt: updateResult.rows[0].date_heure_arrivee_pickup
+            },
+            driver: driverData
+        });
+
+    } catch (err) {
+        await db.query('ROLLBACK');
+        console.error("❌ Error marking arrival at pickup:", err);
+        res.status(500).json({
+            success: false,
+            error: 'Erreur serveur'
+        });
+    }
+});
+
+// API spécifique pour démarrer le voyage avec notification WebSocket
+router.post('/start-trip', async (req, res) => {
+    const { driverId, tripId } = req.body;
+
+    if (!driverId || !tripId) {
+        return res.status(400).json({
+            success: false,
+            error: 'driverId et tripId sont requis'
+        });
+    }
+
+    try {
+        console.log(`🚗 Driver ${driverId} starting trip ${tripId}`);
+
+        await db.query('BEGIN');
+
+        // Vérifier que la course existe et appartient au chauffeur
+        const currentTrip = await db.query(`
+            SELECT etat_course, id_client, nom_client, telephone_client, adresse_arrivee
+            FROM Course 
+            WHERE id_course = $1 AND id_chauffeur = $2
+        `, [tripId, driverId]);
+
+        if (currentTrip.rowCount === 0) {
+            await db.query('ROLLBACK');
+            return res.status(404).json({
+                success: false,
+                error: 'Course non trouvée ou non assignée à ce chauffeur'
+            });
+        }
+
+        const trip = currentTrip.rows[0];
+
+        // Vérifier que le statut permet la transition vers 'en_cours'
+        if (!['arrivee_pickup'].includes(trip.etat_course)) {
+            await db.query('ROLLBACK');
+            return res.status(400).json({
+                success: false,
+                error: `Impossible de démarrer le voyage depuis l'état: ${trip.etat_course}. Le chauffeur doit d'abord arriver au pickup.`
+            });
+        }
+
+        // Mettre à jour le statut de la course à 'en_cours'
+        const updateResult = await db.query(`
+            UPDATE Course 
+            SET etat_course = 'en_cours', 
+                date_heure_debut_course = CURRENT_TIMESTAMP 
+            WHERE id_course = $1 AND id_chauffeur = $2
+            RETURNING *
+        `, [tripId, driverId]);
+
+        if (updateResult.rowCount === 0) {
+            await db.query('ROLLBACK');
+            return res.status(409).json({
+                success: false,
+                error: 'Impossible de mettre à jour la course'
+            });
+        }
+
+        // Récupérer les informations du chauffeur pour la notification
+        const driverInfo = await db.query(`
+            SELECT nom, prenom, telephone, marque_vehicule, plaque_immatriculation
+            FROM Chauffeur 
+            WHERE id_chauffeur = $1
+        `, [driverId]);
+
+        let driverData = null;
+        if (driverInfo.rowCount > 0) {
+            const driver = driverInfo.rows[0];
+            driverData = {
+                id: driverId,
+                name: `${driver.prenom} ${driver.nom}`,
+                phone: driver.telephone,
+                vehicle: {
+                    brand: driver.marque_vehicule || 'Véhicule',
+                    plate: driver.plaque_immatriculation || 'Non spécifiée'
+                }
+            };
+        }
+
+        await db.query('COMMIT');
+
+        // 🚀 NOTIFICATION WEBSOCKET AU CLIENT
+        try {
+            const { notifyClient } = require('./websocket');
+            
+            const notification = {
+                type: 'trip_started',
+                data: {
+                    tripId: tripId,
+                    message: 'Votre voyage a commencé ! Direction: ' + (trip.adresse_arrivee || 'votre destination'),
+                    driver: driverData,
+                    destination: trip.adresse_arrivee,
+                    timestamp: new Date().toISOString()
+                }
+            };
+
+            // Notifier le client (si connecté via WebSocket)
+            await notifyClient(trip.id_client, notification);
+            console.log(`✅ Client ${trip.id_client} notified of trip start`);
+            
+        } catch (wsError) {
+            console.error('⚠️ WebSocket notification failed (trip status updated):', wsError.message);
+            // Ne pas faire échouer la requête si la notification échoue
+        }
+
+        // 📱 PUSH NOTIFICATION AU CLIENT
+        try {
+            await pushNotificationService.sendTripStatusNotification(
+                trip.id_client,
+                tripId,
+                'trip_started',
+                {
+                    name: driverData ? driverData.name : 'Votre chauffeur',
+                    destination: trip.adresse_arrivee
+                }
+            );
+            console.log(`✅ Push notification sent to client ${trip.id_client} for trip start`);
+        } catch (pushError) {
+            console.error('⚠️ Push notification failed (trip status updated):', pushError.message);
+            // Ne pas faire échouer la requête si la notification échoue
+        }
+
+        console.log(`✅ Trip ${tripId} started successfully`);
+
+        res.json({
+            success: true,
+            message: 'Voyage démarré avec succès',
+            trip: {
+                id: tripId,
+                status: 'en_cours',
+                startedAt: updateResult.rows[0].date_heure_debut_course,
+                destination: trip.adresse_arrivee
+            },
+            driver: driverData
+        });
+
+    } catch (err) {
+        await db.query('ROLLBACK');
+        console.error("❌ Error starting trip:", err);
+        res.status(500).json({
+            success: false,
+            error: 'Erreur serveur'
+        });
+    }
+});
+
+// API spécifique pour terminer le voyage avec calcul du prix final et notification WebSocket
+router.post('/complete', async (req, res) => {
+    const { driverId, tripId } = req.body;
+
+    if (!driverId || !tripId) {
+        return res.status(400).json({
+            success: false,
+            error: 'driverId et tripId sont requis'
+        });
+    }
+
+    try {
+        console.log(`🚗 Driver ${driverId} completing trip ${tripId}`);
+
+        await db.query('BEGIN');
+
+        // Vérifier que la course existe et appartient au chauffeur
+        const currentTrip = await db.query(`
+            SELECT etat_course, id_client, nom_client, telephone_client, prix, 
+                   adresse_depart, adresse_arrivee, distance_km, duree_min,
+                   date_heure_debut_course
+            FROM Course 
+            WHERE id_course = $1 AND id_chauffeur = $2
+        `, [tripId, driverId]);
+
+        if (currentTrip.rowCount === 0) {
+            await db.query('ROLLBACK');
+            return res.status(404).json({
+                success: false,
+                error: 'Course non trouvée ou non assignée à ce chauffeur'
+            });
+        }
+
+        const trip = currentTrip.rows[0];
+
+        // Vérifier que le statut permet la transition vers 'terminee'
+        if (!['en_cours'].includes(trip.etat_course)) {
+            await db.query('ROLLBACK');
+            return res.status(400).json({
+                success: false,
+                error: `Impossible de terminer le voyage depuis l'état: ${trip.etat_course}. Le voyage doit être en cours.`
+            });
+        }
+
+        // Calculer le prix final (utiliser le prix existant ou recalculer si nécessaire)
+        let finalPrice = parseFloat(trip.prix) || 0;
+        
+        // Si le prix n'existe pas, calculer un prix de base basé sur la distance
+        if (finalPrice === 0 && trip.distance_km) {
+            const basePricePerKm = 500; // 500 FCFA par km (à ajuster selon les tarifs Vamo)
+            const minimumPrice = 1000; // Prix minimum de 1000 FCFA
+            finalPrice = Math.max(trip.distance_km * basePricePerKm, minimumPrice);
+        }
+
+        // Mettre à jour le statut de la course à 'terminee'
+        const updateResult = await db.query(`
+            UPDATE Course 
+            SET etat_course = 'terminee', 
+                date_heure_arrivee = CURRENT_TIMESTAMP,
+                prix = $1,
+                est_paye = false
+            WHERE id_course = $2 AND id_chauffeur = $3
+            RETURNING *
+        `, [finalPrice, tripId, driverId]);
+
+        if (updateResult.rowCount === 0) {
+            await db.query('ROLLBACK');
+            return res.status(409).json({
+                success: false,
+                error: 'Impossible de mettre à jour la course'
+            });
+        }
+
+        // Récupérer les informations du chauffeur pour la notification
+        const driverInfo = await db.query(`
+            SELECT nom, prenom, telephone, marque_vehicule, plaque_immatriculation
+            FROM Chauffeur 
+            WHERE id_chauffeur = $1
+        `, [driverId]);
+
+        let driverData = null;
+        if (driverInfo.rowCount > 0) {
+            const driver = driverInfo.rows[0];
+            driverData = {
+                id: driverId,
+                name: `${driver.prenom} ${driver.nom}`,
+                phone: driver.telephone,
+                vehicle: {
+                    brand: driver.marque_vehicule || 'Véhicule',
+                    plate: driver.plaque_immatriculation || 'Non spécifiée'
+                }
+            };
+        }
+
+        await db.query('COMMIT');
+
+        // 🚀 NOTIFICATION WEBSOCKET AU CLIENT
+        try {
+            const { notifyClient } = require('./websocket');
+            
+            const notification = {
+                type: 'trip_completed',
+                data: {
+                    tripId: tripId,
+                    message: 'Votre voyage est terminé ! Merci d\'avoir utilisé Vamo.',
+                    finalPrice: finalPrice,
+                    currency: 'FCFA',
+                    distance: trip.distance_km + ' km',
+                    duration: trip.duree_min + ' min',
+                    driver: driverData,
+                    pickupAddress: trip.adresse_depart,
+                    destinationAddress: trip.adresse_arrivee,
+                    timestamp: new Date().toISOString()
+                }
+            };
+
+            // Notifier le client (si connecté via WebSocket)
+            await notifyClient(trip.id_client, notification);
+            console.log(`✅ Client ${trip.id_client} notified of trip completion`);
+            
+        } catch (wsError) {
+            console.error('⚠️ WebSocket notification failed (trip status updated):', wsError.message);
+            // Ne pas faire échouer la requête si la notification échoue
+        }
+
+        // 📱 PUSH NOTIFICATION AU CLIENT
+        try {
+            await pushNotificationService.sendTripStatusNotification(
+                trip.id_client,
+                tripId,
+                'trip_completed',
+                {
+                    name: driverData ? driverData.name : 'Votre chauffeur',
+                    finalPrice: finalPrice,
+                    currency: 'FCFA'
+                }
+            );
+            console.log(`✅ Push notification sent to client ${trip.id_client} for trip completion`);
+        } catch (pushError) {
+            console.error('⚠️ Push notification failed (trip status updated):', pushError.message);
+            // Ne pas faire échouer la requête si la notification échoue
+        }
+
+        console.log(`✅ Trip ${tripId} completed successfully with final price: ${finalPrice} FCFA`);
+
+        res.json({
+            success: true,
+            message: 'Voyage terminé avec succès',
+            trip: {
+                id: tripId,
+                status: 'terminee',
+                completedAt: updateResult.rows[0].date_heure_arrivee,
+                finalPrice: finalPrice,
+                currency: 'FCFA',
+                distance: trip.distance_km + ' km',
+                duration: trip.duree_min + ' min',
+                pickup: trip.adresse_depart,
+                destination: trip.adresse_arrivee
+            },
+            driver: driverData
+        });
+
+    } catch (err) {
+        await db.query('ROLLBACK');
+        console.error("❌ Error completing trip:", err);
         res.status(500).json({
             success: false,
             error: 'Erreur serveur'

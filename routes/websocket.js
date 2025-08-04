@@ -6,6 +6,8 @@ const router = express.Router();
 // Store pour les connexions WebSocket des chauffeurs et livreurs
 const connectedDrivers = new Map();
 const connectedDeliveryDrivers = new Map();
+// Store pour les connexions WebSocket des clients
+const connectedClients = new Map();
 
 /**
  * 🚀 WEBSOCKET avec bibliothèque 'ws' (compatible React Native)
@@ -127,6 +129,10 @@ function handleWebSocketMessage(ws, message) {
 
         case 'delivery-driver-connect':
             handleDeliveryDriverConnect(ws, message);
+            break;
+
+        case 'client-connect':
+            handleClientConnect(ws, message);
             break;
 
         case 'ping':
@@ -274,6 +280,88 @@ function handleDeliveryDriverDisconnect(ws, message) {
     // Close with proper code
     if (ws.readyState === WebSocket.OPEN) {
         ws.close(1000, 'Delivery driver disconnected');
+    }
+}
+
+// Handler pour les connexions clients
+function handleClientConnect(ws, message) {
+    const { clientId, clientName } = message.data || message;
+    
+    if (!clientId) {
+        console.error('❌ Client connection missing clientId');
+        ws.send(JSON.stringify({
+            type: 'error',
+            message: 'clientId is required'
+        }));
+        return;
+    }
+
+    // Stocker la connexion client
+    ws.clientId = clientId.toString();
+    ws.clientName = clientName || `Client-${clientId}`;
+    ws.lastPing = new Date();
+
+    connectedClients.set(clientId.toString(), {
+        ws: ws,
+        clientId: clientId.toString(),
+        clientName: ws.clientName,
+        connectedAt: new Date(),
+        lastPing: new Date()
+    });
+
+    console.log(`👤 Client connected: ${ws.clientName} (ID: ${clientId})`);
+    console.log(`📊 Total clients connected: ${connectedClients.size}`);
+
+    // Confirmer la connexion
+    ws.send(JSON.stringify({
+        type: 'client-connected',
+        data: {
+            success: true,
+            message: 'Connected to client service successfully',
+            clientId: clientId,
+            timestamp: new Date().toISOString()
+        }
+    }));
+}
+
+function handleClientDisconnect(ws, message) {
+    const { clientId } = message.data || message;
+    const targetClientId = clientId || ws.clientId;
+
+    if (targetClientId && connectedClients.has(targetClientId.toString())) {
+        const clientData = connectedClients.get(targetClientId.toString());
+        console.log(`👋 Client disconnecting: ${clientData.clientName} (ID: ${targetClientId})`);
+        connectedClients.delete(targetClientId.toString());
+    }
+
+    console.log(`📊 Total clients connected: ${connectedClients.size}`);
+}
+
+// 🚀 FONCTION - Notifier un client spécifique via WebSocket
+async function notifyClient(clientId, notification) {
+    console.log(`📱 Notifying client ${clientId}:`, notification.type);
+    
+    const clientData = connectedClients.get(clientId.toString());
+    
+    if (!clientData) {
+        console.log(`⚠️ Client ${clientId} not connected to WebSocket`);
+        return false;
+    }
+
+    try {
+        if (clientData.ws.readyState === WebSocket.OPEN) {
+            clientData.ws.send(JSON.stringify(notification));
+            console.log(`✅ Notification sent to client ${clientId}`);
+            return true;
+        } else {
+            console.log(`⚠️ Client ${clientId} WebSocket connection not open`);
+            connectedClients.delete(clientId.toString());
+            return false;
+        }
+    } catch (error) {
+        console.error(`❌ Error sending notification to client ${clientId}:`, error);
+        connectedClients.delete(clientId.toString());
+        return false;
     }
 }
 
@@ -490,6 +578,7 @@ module.exports = {
     initializeWebSocket,
     notifyAllDrivers,
     notifyAllDeliveryDrivers,
+    notifyClient,
     getWebSocketConnections,
     notifyTripTaken,
     getConnectedDriversCount: () => connectedDrivers.size,
