@@ -93,6 +93,43 @@ router.get('/approved-livreurs', async (req, res) => {
     }
 });
 
+// Endpoint pour lister tous les chauffeurs approuvés
+router.get('/approved-chauffeurs', async (req, res) => {
+    try {
+        console.log('🔍 Fetching all approved chauffeurs...');
+        
+        const result = await pool.query(`
+            SELECT 
+                id_chauffeur,
+                nom,
+                prenom,
+                telephone,
+                type_vehicule,
+                statut_validation,
+                disponibilite,
+                date_creation
+            FROM Chauffeur 
+            WHERE statut_validation = 'approuve'
+            ORDER BY id_chauffeur
+        `);
+        
+        console.log(`✅ Found ${result.rowCount} approved chauffeurs`);
+        
+        res.json({
+            success: true,
+            message: `Found ${result.rowCount} approved chauffeurs`,
+            chauffeurs: result.rows
+        });
+        
+    } catch (error) {
+        console.error('❌ Error fetching approved chauffeurs:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
 // Add en_livraison column to Livreur table
 router.post('/add-en-livraison-column', async (req, res) => {
     try {
