@@ -511,8 +511,52 @@ router.post('/complete', async (req, res) => {
     }
 });
 
-// Cancel trip
+// Cancel trip (client cancelling during search)
 router.post('/cancel', async (req, res) => {
+    const { tripId } = req.body;
+
+    if (!tripId) {
+        return res.status(400).json({
+            success: false,
+            error: 'tripId est requis'
+        });
+    }
+
+    try {
+        console.log(`🚗 Client cancelling trip ${tripId}`);
+
+        // Cancel trip (set status to cancelled)
+        const result = await db.query(`
+            UPDATE Course 
+            SET etat_course = 'annulee'
+            WHERE id_course = $1 AND etat_course = 'en_attente'
+        `, [tripId]);
+
+        if (result.rowCount === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Course non trouvée ou déjà traitée'
+            });
+        }
+
+        console.log(`✅ Trip ${tripId} cancelled successfully by client`);
+
+        res.json({
+            success: true,
+            message: 'Course annulée avec succès'
+        });
+
+    } catch (err) {
+        console.error("❌ Error cancelling trip:", err);
+        res.status(500).json({
+            success: false,
+            error: 'Erreur serveur'
+        });
+    }
+});
+
+// Cancel trip (driver cancelling accepted trip)
+router.post('/driver-cancel', async (req, res) => {
     const { driverId, tripId, reason } = req.body;
 
     if (!driverId || !tripId) {
