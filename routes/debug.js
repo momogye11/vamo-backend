@@ -104,7 +104,6 @@ router.get('/approved-chauffeurs', async (req, res) => {
                 nom,
                 prenom,
                 telephone,
-                type_vehicule,
                 statut_validation,
                 disponibilite,
                 date_creation
