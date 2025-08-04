@@ -1033,4 +1033,99 @@ router.post('/complete', async (req, res) => {
     }
 });
 
+// Search endpoint for trips
+router.post('/search', async (req, res) => {
+    try {
+        const { origin, destination, estimatedFare } = req.body;
+
+        console.log('🔍 Trip search request received:', {
+            origin: origin?.description,
+            destination: destination?.description,
+            estimatedFare
+        });
+
+        if (!origin || !destination || !estimatedFare) {
+            return res.status(400).json({
+                success: false,
+                error: 'Origin, destination, and estimated fare are required'
+            });
+        }
+
+        // Extract coordinates
+        let originCoords = origin?.location || origin?.coordinates;
+        let destCoords = destination?.location || destination?.coordinates;
+
+        if (!originCoords && origin?.latitude && origin?.longitude) {
+            originCoords = { lat: origin.latitude, lng: origin.longitude };
+        }
+        if (!destCoords && destination?.latitude && destination?.longitude) {
+            destCoords = { lat: destination.latitude, lng: destination.longitude };
+        }
+
+        // TEMPORARY: Use default coordinates if none found
+        if (!originCoords) {
+            originCoords = { lat: 14.7275, lng: -17.5113 };
+            console.log('⚠️ Using default origin coordinates:', originCoords);
+        }
+        if (!destCoords) {
+            destCoords = { lat: 14.7167, lng: -17.4677 };
+            console.log('⚠️ Using default destination coordinates:', destCoords);
+        }
+
+        // Create trip in database
+        const result = await db.query(`
+            INSERT INTO Course (
+                id_client,
+                adresse_depart,
+                adresse_arrivee,
+                latitude_depart,
+                longitude_depart,
+                latitude_arrivee,
+                longitude_arrivee,
+                prix,
+                mode_paiement,
+                etat_course,
+                distance_km,
+                duree_min,
+                date_heure_depart
+            ) VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CURRENT_TIMESTAMP
+            ) RETURNING id_course
+        `, [
+            1, // Default client ID
+            origin.description || 'Unknown origin',
+            destination.description || 'Unknown destination',
+            originCoords.lat,
+            originCoords.lng,
+            destCoords.lat,
+            destCoords.lng,
+            estimatedFare.amount,
+            'especes',
+            'en_attente',
+            5.0, // Default distance
+            15   // Default duration
+        ]);
+
+        const tripId = result.rows[0].id_course;
+        const searchId = `trip_search_${tripId}_${Date.now()}`;
+
+        console.log(`✅ Trip search created: ${searchId} (Trip ID: ${tripId})`);
+
+        res.json({
+            success: true,
+            searchId: searchId,
+            status: 'searching',
+            estimatedWaitTime: '3-7 min',
+            tripId: tripId
+        });
+
+    } catch (err) {
+        console.error('❌ Error creating trip search:', err);
+        res.status(500).json({
+            success: false,
+            error: 'Erreur serveur'
+        });
+    }
+});
+
 module.exports = router;
