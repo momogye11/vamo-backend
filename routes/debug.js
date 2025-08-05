@@ -193,6 +193,31 @@ router.post('/add-client-notification-fields', async (req, res) => {
     }
 });
 
+// Endpoint pour vérifier la structure de la table Course
+router.get('/check-course-structure', async (req, res) => {
+    try {
+        console.log('🔍 Checking Course table structure...');
+        const result = await pool.query(`
+            SELECT column_name, data_type, is_nullable, column_default
+            FROM information_schema.columns
+            WHERE table_name = 'course'
+            ORDER BY ordinal_position
+        `);
+        console.log('✅ Course table structure retrieved');
+        res.json({
+            success: true,
+            message: 'Course table structure',
+            columns: result.rows
+        });
+    } catch (error) {
+        console.error('❌ Error checking Course table structure:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Database error'
+        });
+    }
+});
+
 // Add en_livraison column to Livreur table
 router.post('/add-en-livraison-column', async (req, res) => {
     try {
