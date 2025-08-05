@@ -129,6 +129,31 @@ router.get('/approved-chauffeurs', async (req, res) => {
     }
 });
 
+// Endpoint pour vérifier la structure de la table Client
+router.get('/check-client-structure', async (req, res) => {
+    try {
+        console.log('🔍 Checking Client table structure...');
+        const result = await pool.query(`
+            SELECT column_name, data_type, is_nullable, column_default
+            FROM information_schema.columns
+            WHERE table_name = 'client'
+            ORDER BY ordinal_position
+        `);
+        console.log('✅ Client table structure retrieved');
+        res.json({
+            success: true,
+            message: 'Client table structure',
+            columns: result.rows
+        });
+    } catch (error) {
+        console.error('❌ Error checking Client table structure:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Database error'
+        });
+    }
+});
+
 // Add en_livraison column to Livreur table
 router.post('/add-en-livraison-column', async (req, res) => {
     try {
