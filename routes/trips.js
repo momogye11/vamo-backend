@@ -662,7 +662,7 @@ router.post('/arrive-pickup', async (req, res) => {
         const updateResult = await db.query(`
             UPDATE Course 
             SET etat_course = 'arrivee_pickup', 
-                date_heure_arrivee_pickup = CURRENT_TIMESTAMP 
+                date_heure_arrivee = CURRENT_TIMESTAMP 
             WHERE id_course = $1 AND id_chauffeur = $2
             RETURNING *
         `, [tripId, driverId]);
