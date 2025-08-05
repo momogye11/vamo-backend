@@ -154,6 +154,45 @@ router.get('/check-client-structure', async (req, res) => {
     }
 });
 
+// Endpoint pour ajouter les colonnes manquantes à la table Client
+router.post('/add-client-notification-fields', async (req, res) => {
+    try {
+        console.log('🔧 Adding notification fields to Client table...');
+        
+        // Ajouter les colonnes manquantes
+        await pool.query(`
+            ALTER TABLE Client 
+            ADD COLUMN IF NOT EXISTS push_token TEXT,
+            ADD COLUMN IF NOT EXISTS platform VARCHAR(20),
+            ADD COLUMN IF NOT EXISTS last_token_update TIMESTAMP,
+            ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        `);
+        
+        // Vérifier la structure de la table
+        const tableInfo = await pool.query(`
+            SELECT column_name, data_type, is_nullable, column_default
+            FROM information_schema.columns 
+            WHERE table_name = 'client' 
+            ORDER BY ordinal_position
+        `);
+        
+        console.log('✅ Successfully added notification fields to Client table');
+        
+        res.json({
+            success: true,
+            message: 'Colonnes de notification ajoutées avec succès à la table Client',
+            tableStructure: tableInfo.rows
+        });
+        
+    } catch (error) {
+        console.error('❌ Error adding notification fields to Client table:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
 // Add en_livraison column to Livreur table
 router.post('/add-en-livraison-column', async (req, res) => {
     try {
