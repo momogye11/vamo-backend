@@ -515,6 +515,10 @@ router.post('/complete', async (req, res) => {
 router.post('/cancel', async (req, res) => {
     const { tripId } = req.body;
 
+    console.log('🚗 DEBUG - Cancel request body:', req.body);
+    console.log('🚗 DEBUG - tripId type:', typeof tripId);
+    console.log('🚗 DEBUG - tripId value:', tripId);
+
     if (!tripId) {
         return res.status(400).json({
             success: false,
