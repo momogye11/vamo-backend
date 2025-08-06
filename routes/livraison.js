@@ -335,7 +335,6 @@ router.get('/search/:searchId/status', async (req, res) => {
                     l.id_livreur,
                     l.nom, l.prenom, l.telephone, l.photo_selfie,
                     l.type_vehicule,
-                    COALESCE(l.marque_vehicule, 'Moto') as marque_vehicule,
                     pl.latitude, pl.longitude
                 FROM Livreur l
                 LEFT JOIN PositionLivreur pl ON l.id_livreur = pl.id_livreur
@@ -367,7 +366,7 @@ router.get('/search/:searchId/status', async (req, res) => {
                 eta: `${estimatedETA} min`,
                 vehicle: {
                     type: driverData.type_vehicule || 'motorcycle',
-                    make: driverData.marque_vehicule || 'Moto'
+                    make: 'Moto' // Temporaire: marque_vehicule est déjà utilisée
                 },
                 location: {
                     latitude: parseFloat(driverData.latitude) || 14.7167,
