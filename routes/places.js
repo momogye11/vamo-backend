@@ -135,7 +135,14 @@ router.get('/autocomplete', async (req, res) => {
                 description: prediction.description,
                 icon: getLocationIcon(type_lieu),
                 type_lieu: type_lieu,
-                types: prediction.types || []
+                types: prediction.types || [],
+                // Ajouter les coordonnées si disponibles dans la géométrie
+                latitude: prediction.geometry?.location?.lat || null,
+                longitude: prediction.geometry?.location?.lng || null,
+                location: prediction.geometry ? {
+                    lat: prediction.geometry.location.lat,
+                    lng: prediction.geometry.location.lng
+                } : null
             };
         }) || [];
 
