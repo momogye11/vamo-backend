@@ -53,6 +53,35 @@ function calculateYangoPrice(serviceType, distanceKm, zone) {
     };
 }
 
+function calculateYangoDeliveryPrice(serviceType, distanceKm, zone) {
+    // Prix de référence Yango Livraison pour comparaison
+    const yangoDeliveryRates = {
+        express: {
+            base: 220,           // Prise en charge Yango Express Moto
+            perKmCity: 120,      // Ville Yango Express Moto (avant dégressif)
+            perKmSuburb: 180,    // Périphérie Yango Express Moto
+            waitingFreeMinutes: 10, // 10 min gratuites
+            waitingAfterFree: 100   // 100 CFA/min après 10 min
+        }
+    };
+    
+    const rates = yangoDeliveryRates[serviceType];
+    const baseFare = rates.base;
+    const perKmRate = zone === 'suburb' ? rates.perKmSuburb : rates.perKmCity;
+    const distanceFare = Math.round(distanceKm * perKmRate);
+    const total = baseFare + distanceFare;
+    
+    return {
+        base: baseFare,
+        distance: distanceFare,
+        total: total,
+        perKmRate: perKmRate,
+        zone: zone,
+        waitingFreeMinutes: rates.waitingFreeMinutes,
+        waitingRate: rates.waitingAfterFree
+    };
+}
+
 // Calculate route between origin and destination using Google Directions API
 // Supports both GET and POST requests
 const calculateRoute = async (req, res) => {
@@ -205,6 +234,7 @@ const calculateRoute = async (req, res) => {
         
         // Grille tarifaire Vamo - Compétitive par rapport à Yango
         const pricing = {
+            // === COURSES VTC ===
             // Service Vamo (Éco) - Alternative compétitive à Yango Éco
             vamo: { 
                 base: 500,           // Base de départ (~1,1 km) vs 570 CFA Yango
@@ -219,16 +249,40 @@ const calculateRoute = async (req, res) => {
                 perKmCity: 100,      // Ville vs 110 CFA/km Yango  
                 perKmSuburb: 170,    // Périphérie vs 190 CFA/km Yango
                 waitingFree: true    // Attente GRATUITE vs 35 CFA/min Yango après 3min
+            },
+
+            // === LIVRAISONS MOTO ===
+            // Livraison Express - Alternative compétitive à Yango Express Moto
+            express: {
+                base: 200,           // Prise en charge vs 220 CFA Yango
+                perKmCity: 100,      // Ville vs 120 CFA/km Yango (dégressif 96→75)
+                perKmSuburb: 160,    // Périphérie vs 180 CFA/km Yango (dégressif→170)
+                waitingFreeMinutes: 10,  // 10 min GRATUITES vs 10 min Yango
+                waitingAfterFree: 80,    // 80 CFA/min après vs 100 CFA/min Yango
+                service: 'express'
+            },
+
+            // Livraison Flex - Service économique avec plus d'attente gratuite
+            flex: {
+                base: 150,           // Base encore plus compétitive 
+                perKmCity: 80,       // Plus économique que Express
+                perKmSuburb: 140,    // Plus économique en périphérie
+                waitingFreeMinutes: 15,  // 15 min GRATUITES (avantage vs Yango)
+                waitingAfterFree: 60,    // 60 CFA/min après (très compétitif)
+                service: 'flex'
             }
         };
         
-        // Calculer les prix pour les deux services
+        // Calculer les prix pour tous les services
         const vamoPrice = calculateServicePrice(pricing.vamo, distanceKm, zone);
         const comfortPrice = calculateServicePrice(pricing.comfort, distanceKm, zone);
+        const expressPrice = calculateServicePrice(pricing.express, distanceKm, zone);
+        const flexPrice = calculateServicePrice(pricing.flex, distanceKm, zone);
         
         // Prix Yango pour comparaison (référence)
         const yangoEcoPrice = calculateYangoPrice('eco', distanceKm, zone);
         const yangoComfortPrice = calculateYangoPrice('comfort', distanceKm, zone);
+        const yangoExpressPrice = calculateYangoDeliveryPrice('express', distanceKm, zone);
         
         // Default to vamo service for single price display
         const estimatedFare = vamoPrice.total;
@@ -262,6 +316,7 @@ const calculateRoute = async (req, res) => {
                 
                 // Pricing détaillé avec comparaison Yango
                 pricing: {
+                    // === COURSES VTC ===
                     // Service Vamo (Éco) - Prix principal affiché
                     vamo: {
                         total: vamoPrice.total,
@@ -289,6 +344,35 @@ const calculateRoute = async (req, res) => {
                             waiting: 'GRATUIT'
                         }
                     },
+
+                    // === LIVRAISONS ===
+                    // Livraison Express
+                    express: {
+                        total: expressPrice.total,
+                        currency: 'CFA',
+                        breakdown: {
+                            base: expressPrice.base,
+                            distance: expressPrice.distance,
+                            total: expressPrice.total,
+                            zone: expressPrice.zone,
+                            rate_per_km: expressPrice.perKmRate,
+                            waiting: '10 min GRATUITS, puis 80 CFA/min'
+                        }
+                    },
+
+                    // Livraison Flex
+                    flex: {
+                        total: flexPrice.total,
+                        currency: 'CFA',
+                        breakdown: {
+                            base: flexPrice.base,
+                            distance: flexPrice.distance,
+                            total: flexPrice.total,
+                            zone: flexPrice.zone,
+                            rate_per_km: flexPrice.perKmRate,
+                            waiting: '15 min GRATUITS, puis 60 CFA/min'
+                        }
+                    },
                     
                     // Comparaison avec Yango (pour référence)
                     yango_comparison: {
@@ -305,6 +389,13 @@ const calculateRoute = async (req, res) => {
                             savings: yangoComfortPrice.total - comfortPrice.total,
                             savings_percent: Math.round(((yangoComfortPrice.total - comfortPrice.total) / yangoComfortPrice.total) * 100),
                             waiting: `35 CFA/min après 3min`
+                        },
+                        express_delivery: {
+                            total: yangoExpressPrice.total,
+                            currency: 'CFA',
+                            savings: yangoExpressPrice.total - expressPrice.total,
+                            savings_percent: Math.round(((yangoExpressPrice.total - expressPrice.total) / yangoExpressPrice.total) * 100),
+                            waiting: `10 min gratuits, puis 100 CFA/min`
                         }
                     }
                 },
