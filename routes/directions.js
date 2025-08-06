@@ -2,6 +2,57 @@ const express = require('express');
 const axios = require('axios');
 const router = express.Router();
 
+// Fonctions de calcul tarifaire
+function calculateServicePrice(serviceRates, distanceKm, zone) {
+    const baseFare = serviceRates.base;
+    const perKmRate = zone === 'suburb' ? serviceRates.perKmSuburb : serviceRates.perKmCity;
+    const distanceFare = Math.round(distanceKm * perKmRate);
+    const total = baseFare + distanceFare;
+    
+    return {
+        base: baseFare,
+        distance: distanceFare,
+        total: total,
+        perKmRate: perKmRate,
+        zone: zone,
+        waitingFree: serviceRates.waitingFree
+    };
+}
+
+function calculateYangoPrice(serviceType, distanceKm, zone) {
+    // Prix de référence Yango pour comparaison
+    const yangoRates = {
+        eco: {
+            base: 570,           // Prix de départ Yango Éco
+            perKmCity: 100,      // Ville Yango Éco
+            perKmSuburb: 180,    // Périphérie Yango Éco
+            waitingAfter3Min: 30 // 30 CFA/min après 3 min
+        },
+        comfort: {
+            base: 680,           // Prix de départ Yango Confort
+            perKmCity: 110,      // Ville Yango Confort
+            perKmSuburb: 190,    // Périphérie Yango Confort
+            waitingAfter3Min: 35 // 35 CFA/min après 3 min
+        }
+    };
+    
+    const rates = yangoRates[serviceType];
+    const baseFare = rates.base;
+    const perKmRate = zone === 'suburb' ? rates.perKmSuburb : rates.perKmCity;
+    const distanceFare = Math.round(distanceKm * perKmRate);
+    const total = baseFare + distanceFare;
+    
+    return {
+        base: baseFare,
+        distance: distanceFare,
+        total: total,
+        perKmRate: perKmRate,
+        zone: zone,
+        waitingPaid: true,
+        waitingRate: rates.waitingAfter3Min
+    };
+}
+
 // Calculate route between origin and destination using Google Directions API
 // Supports both GET and POST requests
 const calculateRoute = async (req, res) => {
@@ -152,20 +203,35 @@ const calculateRoute = async (req, res) => {
         const isSuburb = distanceKm > 10; // Simple logic: >10km = suburb
         const zone = isSuburb ? 'suburb' : 'city';
         
-        // New pricing structure based on Yango
+        // Grille tarifaire Vamo - Compétitive par rapport à Yango
         const pricing = {
-            vamo: { base: 500, perKmCity: 90, perKmSuburb: 160 },
-            confort: { base: 600, perKmCity: 100, perKmSuburb: 170 },
-            express: { base: 500, perKmCity: 90, perKmSuburb: 160 },
-            standard: { base: 400, perKmCity: 80, perKmSuburb: 150 }
+            // Service Vamo (Éco) - Alternative compétitive à Yango Éco
+            vamo: { 
+                base: 500,           // Base de départ (~1,1 km) vs 570 CFA Yango
+                perKmCity: 90,       // Ville vs 100 CFA/km Yango
+                perKmSuburb: 150,    // Périphérie vs 180 CFA/km Yango
+                waitingFree: true    // Attente GRATUITE vs 30 CFA/min Yango après 3min
+            },
+            
+            // Service Comfort - Alternative compétitive à Yango Confort
+            comfort: { 
+                base: 600,           // Base de départ vs 680 CFA Yango
+                perKmCity: 100,      // Ville vs 110 CFA/km Yango  
+                perKmSuburb: 170,    // Périphérie vs 190 CFA/km Yango
+                waitingFree: true    // Attente GRATUITE vs 35 CFA/min Yango après 3min
+            }
         };
         
-        // Default to vamo service
-        const rates = pricing.vamo;
-        const baseFare = rates.base;
-        const perKmRate = zone === 'suburb' ? rates.perKmSuburb : rates.perKmCity;
-        const distanceFare = Math.round(distanceKm * perKmRate);
-        const estimatedFare = baseFare + distanceFare;
+        // Calculer les prix pour les deux services
+        const vamoPrice = calculateServicePrice(pricing.vamo, distanceKm, zone);
+        const comfortPrice = calculateServicePrice(pricing.comfort, distanceKm, zone);
+        
+        // Prix Yango pour comparaison (référence)
+        const yangoEcoPrice = calculateYangoPrice('eco', distanceKm, zone);
+        const yangoComfortPrice = calculateYangoPrice('comfort', distanceKm, zone);
+        
+        // Default to vamo service for single price display
+        const estimatedFare = vamoPrice.total;
 
         // Prepare response
         const routeData = {
@@ -194,13 +260,62 @@ const calculateRoute = async (req, res) => {
                 start_address: leg.start_address,
                 end_address: leg.end_address,
                 
-                // Pricing
+                // Pricing détaillé avec comparaison Yango
+                pricing: {
+                    // Service Vamo (Éco) - Prix principal affiché
+                    vamo: {
+                        total: vamoPrice.total,
+                        currency: 'CFA',
+                        breakdown: {
+                            base: vamoPrice.base,
+                            distance: vamoPrice.distance,
+                            total: vamoPrice.total,
+                            zone: vamoPrice.zone,
+                            rate_per_km: vamoPrice.perKmRate,
+                            waiting: 'GRATUIT'
+                        }
+                    },
+                    
+                    // Service Comfort
+                    comfort: {
+                        total: comfortPrice.total,
+                        currency: 'CFA',
+                        breakdown: {
+                            base: comfortPrice.base,
+                            distance: comfortPrice.distance,
+                            total: comfortPrice.total,
+                            zone: comfortPrice.zone,
+                            rate_per_km: comfortPrice.perKmRate,
+                            waiting: 'GRATUIT'
+                        }
+                    },
+                    
+                    // Comparaison avec Yango (pour référence)
+                    yango_comparison: {
+                        eco: {
+                            total: yangoEcoPrice.total,
+                            currency: 'CFA',
+                            savings: yangoEcoPrice.total - vamoPrice.total,
+                            savings_percent: Math.round(((yangoEcoPrice.total - vamoPrice.total) / yangoEcoPrice.total) * 100),
+                            waiting: `30 CFA/min après 3min`
+                        },
+                        comfort: {
+                            total: yangoComfortPrice.total,
+                            currency: 'CFA',
+                            savings: yangoComfortPrice.total - comfortPrice.total,
+                            savings_percent: Math.round(((yangoComfortPrice.total - comfortPrice.total) / yangoComfortPrice.total) * 100),
+                            waiting: `35 CFA/min après 3min`
+                        }
+                    }
+                },
+                
+                // Prix principal pour compatibilité (service Vamo Éco)
                 estimated_fare: {
                     amount: estimatedFare,
                     currency: 'CFA',
                     breakdown: {
-                        base_fare: baseFare,
-                        distance_fare: distanceFare,
+                        base_fare: vamoPrice.base,
+                        distance_fare: vamoPrice.distance,
                         total: estimatedFare
                     }
                 },
