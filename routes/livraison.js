@@ -71,22 +71,19 @@ router.post('/search', async (req, res) => {
             console.log('✅ Extracted destination coords from latitude/longitude:', destCoords);
         }
         
-        // TEMPORARY: Use default coordinates if none found (to restore functionality)
+        // Validate coordinates are present - NO MORE DEFAULTS
         if (!originCoords) {
-            originCoords = { lat: 14.7275, lng: -17.5113 };
-            console.log('⚠️ Using default origin coordinates:', originCoords);
-        }
-        if (!destCoords) {
-            destCoords = { lat: 14.7167, lng: -17.4677 };
-            console.log('⚠️ Using default destination coordinates:', destCoords);
-        }
-        
-        // Validate coordinates are present (now with defaults)
-        if (!originCoords || !destCoords) {
-            console.error('❌ Missing coordinates:', { originCoords, destCoords });
+            console.error('❌ Missing origin coordinates');
             return res.status(400).json({
                 success: false,
-                error: 'Coordinates are required for delivery'
+                error: 'Origin coordinates are required'
+            });
+        }
+        if (!destCoords) {
+            console.error('❌ Missing destination coordinates');
+            return res.status(400).json({
+                success: false,
+                error: 'Destination coordinates are required'
             });
         }
         

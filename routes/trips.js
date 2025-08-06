@@ -1110,14 +1110,20 @@ router.post('/search', async (req, res) => {
             destCoords = { lat: destination.latitude, lng: destination.longitude };
         }
 
-        // TEMPORARY: Use default coordinates if none found
+        // Validate coordinates are present - NO MORE DEFAULTS
         if (!originCoords) {
-            originCoords = { lat: 14.7275, lng: -17.5113 };
-            console.log('⚠️ Using default origin coordinates:', originCoords);
+            console.error('❌ Missing origin coordinates');
+            return res.status(400).json({
+                success: false,
+                error: 'Origin coordinates are required'
+            });
         }
         if (!destCoords) {
-            destCoords = { lat: 14.7167, lng: -17.4677 };
-            console.log('⚠️ Using default destination coordinates:', destCoords);
+            console.error('❌ Missing destination coordinates');
+            return res.status(400).json({
+                success: false,
+                error: 'Destination coordinates are required'
+            });
         }
 
         // Create trip in database

@@ -520,10 +520,17 @@ CREATE TABLE ConfigurationTarif (
     date_modification TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Insérer configurations par défaut
+-- Insérer configurations par défaut basées sur la grille Yango
 INSERT INTO ConfigurationTarif (type_service, prix_base, prix_par_km, prix_minimum) VALUES
-('course', 500.00, 200.00, 1000.00),
-('livraison', 300.00, 150.00, 800.00);
+('course', 500.00, 90.00, 500.00), -- Service Vamo
+('livraison', 400.00, 80.00, 400.00); -- Livraison Standard
+
+-- Ajouter des configurations pour les services premium
+INSERT INTO ConfigurationTarif (type_service, prix_base, prix_par_km, prix_minimum, zone) VALUES
+('course_confort', 600.00, 100.00, 600.00, 'city'),
+('course_confort', 600.00, 170.00, 600.00, 'suburb'),
+('livraison_express', 500.00, 90.00, 500.00, 'city'),
+('livraison_express', 500.00, 160.00, 500.00, 'suburb');
 
 -- ======================================
 --              ZONES DE SERVICE

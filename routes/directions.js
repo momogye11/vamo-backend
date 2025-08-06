@@ -145,11 +145,27 @@ const calculateRoute = async (req, res) => {
         // Decode polyline for frontend use (optional - can be done on frontend too)
         const coordinates = decodePolyline(polylinePoints);
 
-        // Calculate estimated fare based on distance (basic calculation)
+        // Calculate estimated fare based on distance and zone (new pricing based on Yango)
         const distanceKm = leg.distance.value / 1000;
-        const baseFare = 500; // Base fare in CFA
-        const perKmRate = 200; // Rate per km in CFA
-        const estimatedFare = Math.round(baseFare + (distanceKm * perKmRate));
+        
+        // Determine zone (simplified - can be enhanced with GPS coordinates)
+        const isSuburb = distanceKm > 10; // Simple logic: >10km = suburb
+        const zone = isSuburb ? 'suburb' : 'city';
+        
+        // New pricing structure based on Yango
+        const pricing = {
+            vamo: { base: 500, perKmCity: 90, perKmSuburb: 160 },
+            confort: { base: 600, perKmCity: 100, perKmSuburb: 170 },
+            express: { base: 500, perKmCity: 90, perKmSuburb: 160 },
+            standard: { base: 400, perKmCity: 80, perKmSuburb: 150 }
+        };
+        
+        // Default to vamo service
+        const rates = pricing.vamo;
+        const baseFare = rates.base;
+        const perKmRate = zone === 'suburb' ? rates.perKmSuburb : rates.perKmCity;
+        const distanceFare = Math.round(distanceKm * perKmRate);
+        const estimatedFare = baseFare + distanceFare;
 
         // Prepare response
         const routeData = {
@@ -184,7 +200,7 @@ const calculateRoute = async (req, res) => {
                     currency: 'CFA',
                     breakdown: {
                         base_fare: baseFare,
-                        distance_fare: Math.round(distanceKm * perKmRate),
+                        distance_fare: distanceFare,
                         total: estimatedFare
                     }
                 },
