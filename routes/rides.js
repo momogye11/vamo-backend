@@ -224,9 +224,17 @@ router.get('/search/:searchId/status', async (req, res) => {
     try {
         console.log(`🔄 Checking search status: ${searchId}`);
         
+        if (!searchId) {
+            return res.status(400).json({
+                success: false,
+                error: 'Search ID is required'
+            });
+        }
+        
         const searchData = activeSearches.get(searchId);
         
         if (!searchData) {
+            console.log(`❌ Search session not found: ${searchId}`);
             return res.status(404).json({
                 success: false,
                 error: 'Search session not found'
@@ -247,6 +255,7 @@ router.get('/search/:searchId/status', async (req, res) => {
         `, [searchData.courseId]);
         
         if (courseResult.rowCount === 0) {
+            console.log(`❌ Course not found: ${searchData.courseId}`);
             return res.status(404).json({
                 success: false,
                 error: 'Course not found'
@@ -262,55 +271,88 @@ router.get('/search/:searchId/status', async (req, res) => {
             status = 'driver_found';
             searchData.status = 'driver_found';
             
-            // Récupérer les vraies données du chauffeur + véhicule + position
-            const driverDetailsResult = await db.query(`
-                SELECT 
-                    c.id_chauffeur,
-                    c.nom, c.prenom, c.telephone, c.photo_selfie,
-                    c.marque_vehicule, c.plaque_immatriculation, c.annee_vehicule,
-                    v.marque as vehicle_make, v.modele as vehicle_model, v.couleur as vehicle_color,
-                    pc.latitude, pc.longitude
-                FROM Chauffeur c
-                LEFT JOIN Vehicule v ON c.id_chauffeur = v.id_chauffeur
-                LEFT JOIN PositionChauffeur pc ON c.id_chauffeur = pc.id_chauffeur
-                WHERE c.id_chauffeur = $1
-            `, [course.id_chauffeur]);
-            
-            const driverData = driverDetailsResult.rows[0] || {};
-            
-            // Calculer l'ETA approximatif (distance / vitesse moyenne 30km/h en ville)
-            const originCoords = { 
-                lat: parseFloat(course.latitude_depart) || 14.7167, 
-                lng: parseFloat(course.longitude_depart) || -17.4677 
-            };
-            const driverCoords = { 
-                lat: parseFloat(driverData.latitude) || 14.7167, 
-                lng: parseFloat(driverData.longitude) || -17.4677 
-            };
-            const estimatedDistance = calculateDistance(originCoords, driverCoords);
-            const estimatedETA = Math.max(1, Math.round(estimatedDistance / 30 * 60)); // minutes
-            
-            driver = {
-                id: driverData.id_chauffeur,
-                name: `${driverData.prenom || 'Chauffeur'} ${driverData.nom || ''}`.trim(),
-                firstName: driverData.prenom || 'Chauffeur',
-                lastName: driverData.nom || '',
-                phone: driverData.telephone,
-                photo: driverData.photo_selfie,
-                rating: 4.5, // TODO: Calculate real rating from Note table
-                eta: `${estimatedETA} min`,
-                vehicle: {
-                    make: driverData.vehicle_make || driverData.marque_vehicule || 'Toyota',
-                    model: driverData.vehicle_model || 'Yaris',
-                    color: driverData.vehicle_color || 'Noir',
-                    year: driverData.annee_vehicule,
-                    licensePlate: driverData.plaque_immatriculation || 'DK-0000-XX'
-                },
-                location: {
-                    latitude: parseFloat(driverData.latitude) || 14.7167,
-                    longitude: parseFloat(driverData.longitude) || -17.4677
-                }
-            };
+            try {
+                // Récupérer les vraies données du chauffeur + véhicule + position
+                const driverDetailsResult = await db.query(`
+                    SELECT 
+                        c.id_chauffeur,
+                        c.nom, c.prenom, c.telephone, c.photo_selfie,
+                        c.marque_vehicule, c.plaque_immatriculation, c.annee_vehicule,
+                        v.marque as vehicle_make, v.modele as vehicle_model, v.couleur as vehicle_color,
+                        pc.latitude, pc.longitude
+                    FROM Chauffeur c
+                    LEFT JOIN Vehicule v ON c.id_chauffeur = v.id_chauffeur
+                    LEFT JOIN PositionChauffeur pc ON c.id_chauffeur = pc.id_chauffeur
+                    WHERE c.id_chauffeur = $1
+                `, [course.id_chauffeur]);
+                
+                const driverData = driverDetailsResult.rows[0] || {};
+                
+                // Calculer l'ETA approximatif (distance / vitesse moyenne 30km/h en ville)
+                const originCoords = { 
+                    lat: parseFloat(searchData.origin?.location?.lat || searchData.origin?.location?.latitude) || 14.7167, 
+                    lng: parseFloat(searchData.origin?.location?.lng || searchData.origin?.location?.longitude) || -17.4677 
+                };
+                const driverCoords = { 
+                    lat: parseFloat(driverData.latitude) || 14.7167, 
+                    lng: parseFloat(driverData.longitude) || -17.4677 
+                };
+                const estimatedDistance = calculateDistance(originCoords, driverCoords);
+                const estimatedETA = Math.max(1, Math.round(estimatedDistance / 30 * 60)); // minutes
+                
+                driver = {
+                    id: driverData.id_chauffeur,
+                    name: `${driverData.prenom || 'Chauffeur'} ${driverData.nom || ''}`.trim(),
+                    firstName: driverData.prenom || 'Chauffeur',
+                    lastName: driverData.nom || '',
+                    phone: driverData.telephone,
+                    photo: driverData.photo_selfie,
+                    rating: 4.5, // TODO: Calculate real rating from Note table
+                    eta: `${estimatedETA} min`,
+                    vehicle: {
+                        make: driverData.vehicle_make || driverData.marque_vehicule || 'Toyota',
+                        model: driverData.vehicle_model || 'Yaris',
+                        color: driverData.vehicle_color || 'Noir',
+                        year: driverData.annee_vehicule,
+                        licensePlate: driverData.plaque_immatriculation || 'DK-0000-XX'
+                    },
+                    location: {
+                        latitude: parseFloat(driverData.latitude) || 14.7167,
+                        longitude: parseFloat(driverData.longitude) || -17.4677
+                    }
+                };
+                
+                console.log(`✅ Driver data prepared for course ${searchData.courseId}:`, {
+                    driverId: driver.id,
+                    driverName: driver.name,
+                    eta: driver.eta
+                });
+                
+            } catch (driverError) {
+                console.error('❌ Error fetching driver details:', driverError);
+                // Return basic driver info even if details fail
+                driver = {
+                    id: course.id_chauffeur,
+                    name: `${course.chauffeur_prenom || 'Chauffeur'} ${course.chauffeur_nom || ''}`.trim(),
+                    firstName: course.chauffeur_prenom || 'Chauffeur',
+                    lastName: course.chauffeur_nom || '',
+                    phone: course.chauffeur_telephone,
+                    photo: null,
+                    rating: 4.5,
+                    eta: '3 min',
+                    vehicle: {
+                        make: 'Toyota',
+                        model: 'Yaris',
+                        color: 'Noir',
+                        year: null,
+                        licensePlate: 'DK-0000-XX'
+                    },
+                    location: {
+                        latitude: 14.7167,
+                        longitude: -17.4677
+                    }
+                };
+            }
         } else if (course.etat_course === 'annulee') {
             status = 'cancelled';
             searchData.status = 'cancelled';
@@ -329,7 +371,7 @@ router.get('/search/:searchId/status', async (req, res) => {
         console.log(`📱 Search status update: ${status}`, {
             searchId,
             courseId: searchData.courseId,
-            driver: driver
+            hasDriver: !!driver
         });
         
         res.json({
