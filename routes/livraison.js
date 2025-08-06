@@ -334,7 +334,8 @@ router.get('/search/:searchId/status', async (req, res) => {
                 SELECT 
                     l.id_livreur,
                     l.nom, l.prenom, l.telephone, l.photo_selfie,
-                    l.type_vehicule, l.marque_vehicule,
+                    l.type_vehicule,
+                    COALESCE(l.marque_vehicule, 'Moto') as marque_vehicule,
                     pl.latitude, pl.longitude
                 FROM Livreur l
                 LEFT JOIN PositionLivreur pl ON l.id_livreur = pl.id_livreur
