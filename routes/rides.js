@@ -28,7 +28,8 @@ router.post('/search', async (req, res) => {
         estimatedFare,
         routeDistance,
         routeDuration,
-        silentMode
+        silentMode,
+        clientId
     } = req.body;
     
     try {
@@ -96,6 +97,7 @@ router.post('/search', async (req, res) => {
         // Create a ride request in the database
         const courseResult = await db.query(`
             INSERT INTO Course (
+                id_client,
                 adresse_depart,
                 adresse_arrivee,
                 latitude_depart,
@@ -111,9 +113,10 @@ router.post('/search', async (req, res) => {
                 date_heure_depart,
                 etat_course,
                 mode_silencieux
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CURRENT_TIMESTAMP, 'en_attente', $13)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, CURRENT_TIMESTAMP, 'en_attente', $14)
             RETURNING id_course
         `, [
+            clientId || 1, // fallback to 1 if not provided
             originAddress,
             destinationAddress,
             parseFloat(originCoords.lat || originCoords.latitude) || 14.7275,
