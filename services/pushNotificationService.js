@@ -148,13 +148,32 @@ class PushNotificationService {
         try {
             console.log(`📱 Sending notification to client ${clientId}`);
 
-            // Get client's push token from database
-            const result = await db.query(
-                'SELECT push_token, notification_preferences FROM client WHERE id_client = $1',
-                [clientId]
-            );
+            // Get client's push token from database (gracefully handle missing columns)
+            let result;
+            let preferences = {};
+            try {
+                result = await db.query(
+                    'SELECT push_token, notification_preferences FROM client WHERE id_client = $1',
+                    [clientId]
+                );
+                if (result.rows[0]?.notification_preferences) {
+                    preferences = result.rows[0].notification_preferences;
+                }
+            } catch (err) {
+                // Column missing on production DB: fallback to minimal select
+                if (err && err.code === '42703') {
+                    console.warn('⚠️ notification_preferences column missing on client table. Using defaults.');
+                    result = await db.query(
+                        'SELECT push_token FROM client WHERE id_client = $1',
+                        [clientId]
+                    );
+                    preferences = {};
+                } else {
+                    throw err;
+                }
+            }
 
-            if (result.rows.length === 0) {
+            if (!result || result.rows.length === 0) {
                 console.error('❌ Client not found:', clientId);
                 return { success: false, error: 'Client not found' };
             }
@@ -168,10 +187,8 @@ class PushNotificationService {
             }
 
             // Check notification preferences
-            const preferences = client.notification_preferences || {};
             const notificationType = data.type || 'general';
-            
-            if (preferences[notificationType] === false) {
+            if (preferences && preferences[notificationType] === false) {
                 console.log(`📱 Client ${clientId} has disabled ${notificationType} notifications`);
                 return { success: true, message: 'Notification disabled by user preference' };
             }
@@ -194,11 +211,29 @@ class PushNotificationService {
         try {
             console.log(`📱 Sending notification to driver ${driverId}`);
 
-            // Get driver's push token from database
-            const result = await db.query(
-                'SELECT push_token, notification_preferences FROM chauffeur WHERE id_chauffeur = $1',
-                [driverId]
-            );
+            // Get driver's push token from database (handle missing preferences column)
+            let result;
+            let preferences = {};
+            try {
+                result = await db.query(
+                    'SELECT push_token, notification_preferences FROM chauffeur WHERE id_chauffeur = $1',
+                    [driverId]
+                );
+                if (result.rows[0]?.notification_preferences) {
+                    preferences = result.rows[0].notification_preferences;
+                }
+            } catch (err) {
+                if (err && err.code === '42703') {
+                    console.warn('⚠️ notification_preferences column missing on chauffeur table. Using defaults.');
+                    result = await db.query(
+                        'SELECT push_token FROM chauffeur WHERE id_chauffeur = $1',
+                        [driverId]
+                    );
+                    preferences = {};
+                } else {
+                    throw err;
+                }
+            }
 
             if (result.rows.length === 0) {
                 console.error('❌ Driver not found:', driverId);
@@ -214,7 +249,6 @@ class PushNotificationService {
             }
 
             // Check notification preferences
-            const preferences = driver.notification_preferences || {};
             const notificationType = data.type || 'general';
             
             if (preferences[notificationType] === false) {
@@ -240,11 +274,29 @@ class PushNotificationService {
         try {
             console.log(`📱 Sending notification to delivery person ${deliveryPersonId}`);
 
-            // Get delivery person's push token from database
-            const result = await db.query(
-                'SELECT push_token, notification_preferences FROM livreur WHERE id_livreur = $1',
-                [deliveryPersonId]
-            );
+            // Get delivery person's push token (handle missing preferences column)
+            let result;
+            let preferences = {};
+            try {
+                result = await db.query(
+                    'SELECT push_token, notification_preferences FROM livreur WHERE id_livreur = $1',
+                    [deliveryPersonId]
+                );
+                if (result.rows[0]?.notification_preferences) {
+                    preferences = result.rows[0].notification_preferences;
+                }
+            } catch (err) {
+                if (err && err.code === '42703') {
+                    console.warn('⚠️ notification_preferences column missing on livreur table. Using defaults.');
+                    result = await db.query(
+                        'SELECT push_token FROM livreur WHERE id_livreur = $1',
+                        [deliveryPersonId]
+                    );
+                    preferences = {};
+                } else {
+                    throw err;
+                }
+            }
 
             if (result.rows.length === 0) {
                 console.error('❌ Delivery person not found:', deliveryPersonId);
@@ -260,7 +312,6 @@ class PushNotificationService {
             }
 
             // Check notification preferences
-            const preferences = deliveryPerson.notification_preferences || {};
             const notificationType = data.type || 'general';
             
             if (preferences[notificationType] === false) {
