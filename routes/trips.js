@@ -702,6 +702,14 @@ router.post('/arrive-pickup', async (req, res) => {
         try {
             const { notifyClient } = require('./websocket');
             
+            console.log(`🔍 DEBUG: About to notify client with id_client: ${trip.id_client}`);
+            console.log(`🔍 DEBUG: Trip data:`, {
+                tripId: tripId,
+                clientId: trip.id_client,
+                clientName: trip.nom_client,
+                clientPhone: trip.telephone_client
+            });
+            
             const notification = {
                 type: 'driver_arrived_pickup',
                 data: {
@@ -713,8 +721,12 @@ router.post('/arrive-pickup', async (req, res) => {
             };
 
             // Notifier le client (si connecté via WebSocket)
-            await notifyClient(trip.id_client, notification);
-            console.log(`✅ Client ${trip.id_client} notified of driver arrival`);
+            const notificationSent = await notifyClient(trip.id_client, notification);
+            if (notificationSent) {
+                console.log(`✅ Client ${trip.id_client} successfully notified of driver arrival`);
+            } else {
+                console.log(`⚠️ Client ${trip.id_client} was NOT notified (not connected or error)`);
+            }
             
         } catch (wsError) {
             console.error('⚠️ WebSocket notification failed (trip status updated):', wsError.message);
