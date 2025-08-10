@@ -521,6 +521,44 @@ function notifyTripTaken(tripId, takenByDriverId) {
     console.log(`📊 Trip taken notification sent to ${notifiedCount} drivers`);
 }
 
+// Fonction pour notifier un chauffeur spécifique
+async function notifyDriver(driverId, type, data) {
+    console.log(`📡 Notifying driver ${driverId} with type: ${type}`);
+    
+    const driverData = connectedDrivers.get(driverId.toString());
+    
+    if (!driverData) {
+        console.log(`⚠️ Driver ${driverId} not connected`);
+        return { success: false, error: 'Driver not connected' };
+    }
+
+    if (driverData.ws.readyState !== WebSocket.OPEN) {
+        console.log(`⚠️ Driver ${driverId} connection not open`);
+        connectedDrivers.delete(driverId.toString());
+        return { success: false, error: 'Driver connection not open' };
+    }
+
+    try {
+        const notification = {
+            type: type,
+            data: {
+                ...data,
+                timestamp: new Date().toISOString()
+            }
+        };
+
+        console.log(`📡 Sending notification to driver ${driverId}:`, notification);
+        driverData.ws.send(JSON.stringify(notification));
+        
+        console.log(`✅ Notification sent successfully to driver ${driverId}`);
+        return { success: true };
+    } catch (error) {
+        console.error(`❌ Error sending notification to driver ${driverId}:`, error);
+        connectedDrivers.delete(driverId.toString());
+        return { success: false, error: error.message };
+    }
+}
+
 // Route de debug pour voir les connexions
 router.get('/debug/connections', (req, res) => {
     const connections = [];
@@ -579,6 +617,7 @@ module.exports = {
     notifyAllDrivers,
     notifyAllDeliveryDrivers,
     notifyClient,
+    notifyDriver,
     getWebSocketConnections,
     notifyTripTaken,
     getConnectedDriversCount: () => connectedDrivers.size,
