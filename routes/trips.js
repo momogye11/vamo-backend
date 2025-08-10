@@ -449,67 +449,8 @@ router.get('/current/:driverId', async (req, res) => {
     }
 });
 
-// Complete trip and confirm payment
-router.post('/complete', async (req, res) => {
-    const { driverId, tripId, paymentMethod } = req.body;
-
-    if (!driverId || !tripId || !paymentMethod) {
-        return res.status(400).json({
-            success: false,
-            error: 'driverId, tripId et paymentMethod sont requis'
-        });
-    }
-
-    try {
-        console.log(`🚗 Completing trip ${tripId} with payment: ${paymentMethod}`);
-
-        await db.query('BEGIN');
-
-        // Update trip as completed and set payment method
-        const updateResult = await db.query(`
-            UPDATE Course 
-            SET etat_course = 'terminee',
-                mode_paiement = $1,
-                est_paye = true,
-                date_heure_arrivee = COALESCE(date_heure_arrivee, CURRENT_TIMESTAMP)
-            WHERE id_course = $2 AND id_chauffeur = $3 AND etat_course IN ('en_cours', 'terminee')
-            RETURNING *
-        `, [paymentMethod, tripId, driverId]);
-
-        if (updateResult.rowCount === 0) {
-            await db.query('ROLLBACK');
-            return res.status(400).json({
-                success: false,
-                error: 'Impossible de terminer la course'
-            });
-        }
-
-        await db.query('COMMIT');
-
-        const trip = updateResult.rows[0];
-
-        console.log(`✅ Trip ${tripId} completed successfully`);
-
-        res.json({
-            success: true,
-            message: 'Course terminée avec succès',
-            trip: {
-                id: trip.id_course,
-                price: trip.prix,
-                paymentMethod: trip.mode_paiement,
-                completedAt: trip.date_heure_arrivee
-            }
-        });
-
-    } catch (err) {
-        await db.query('ROLLBACK');
-        console.error("❌ Error completing trip:", err);
-        res.status(500).json({
-            success: false,
-            error: 'Erreur serveur'
-        });
-    }
-});
+// Complete trip and confirm payment (DEPRECATED - using the main complete endpoint below)
+// This endpoint was causing conflicts and is no longer used
 
 // Cancel trip (client cancelling during search)
 router.post('/cancel', async (req, res) => {
