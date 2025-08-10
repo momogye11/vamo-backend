@@ -470,12 +470,24 @@ router.post('/cancel', async (req, res) => {
     try {
         console.log(`🚗 Client cancelling trip ${tripId}`);
 
+        // Handle both courseId (integer) and searchId (string with timestamp)
+        let actualCourseId = tripId;
+        
+        // If tripId is a searchId (contains timestamp), extract the courseId
+        if (typeof tripId === 'string' && tripId.includes('_')) {
+            const parts = tripId.split('_');
+            if (parts.length >= 2) {
+                actualCourseId = parseInt(parts[1]);
+                console.log(`🔧 Extracted courseId ${actualCourseId} from searchId ${tripId}`);
+            }
+        }
+
         // Cancel trip (set status to cancelled)
         const result = await db.query(`
             UPDATE Course 
             SET etat_course = 'annulee'
             WHERE id_course = $1 AND etat_course = 'en_attente'
-        `, [tripId]);
+        `, [actualCourseId]);
 
         if (result.rowCount === 0) {
             return res.status(404).json({
