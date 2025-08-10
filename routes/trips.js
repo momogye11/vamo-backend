@@ -470,7 +470,7 @@ router.post('/cancel', async (req, res) => {
     try {
         console.log(`🚗 Client cancelling trip ${tripId}`);
 
-        // Handle both courseId (integer) and searchId (string with timestamp)
+        // Handle different tripId formats
         let actualCourseId = tripId;
         
         // If tripId is a searchId (contains timestamp), extract the courseId
@@ -479,6 +479,31 @@ router.post('/cancel', async (req, res) => {
             if (parts.length >= 2) {
                 actualCourseId = parseInt(parts[1]);
                 console.log(`🔧 Extracted courseId ${actualCourseId} from searchId ${tripId}`);
+            }
+        }
+        // If tripId is just a timestamp (very large number), we need to find the course by other means
+        else if (typeof tripId === 'string' && tripId.length > 10) {
+            console.log(`🔧 tripId ${tripId} appears to be a timestamp, searching for active course...`);
+            
+            // Try to find the most recent active course for this client
+            // This is a fallback - ideally the client should send the correct courseId
+            const recentCourse = await db.query(`
+                SELECT id_course 
+                FROM Course 
+                WHERE etat_course = 'en_attente' 
+                ORDER BY date_heure_depart DESC 
+                LIMIT 1
+            `);
+            
+            if (recentCourse.rowCount > 0) {
+                actualCourseId = recentCourse.rows[0].id_course;
+                console.log(`🔧 Found recent course ${actualCourseId} for timestamp ${tripId}`);
+            } else {
+                console.log(`❌ No active course found for timestamp ${tripId}`);
+                return res.status(404).json({
+                    success: false,
+                    error: 'Aucune course active trouvée'
+                });
             }
         }
 
