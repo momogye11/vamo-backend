@@ -1025,7 +1025,7 @@ router.post('/complete', async (req, res) => {
                 type: 'trip_completed',
                 data: {
                     tripId: tripId,
-                    message: 'Votre voyage est terminé ! Merci d\'avoir utilisé Vamo.',
+                    message: 'Votre voyage est terminé ! Évaluez votre chauffeur.',
                     finalPrice: finalPrice,
                     currency: 'FCFA',
                     distance: trip.distance_km + ' km',
@@ -1033,7 +1033,17 @@ router.post('/complete', async (req, res) => {
                     driver: driverData,
                     pickupAddress: trip.adresse_depart,
                     destinationAddress: trip.adresse_arrivee,
-                    timestamp: new Date().toISOString()
+                    timestamp: new Date().toISOString(),
+                    // Données pour la page de notation
+                    tripData: {
+                        id: tripId,
+                        driverName: driverData ? `${driverData.prenom} ${driverData.nom}` : 'Votre chauffeur',
+                        finalPrice: finalPrice,
+                        distance: trip.distance_km + ' km',
+                        duration: trip.duree_min + ' min',
+                        pickupAddress: trip.adresse_depart,
+                        destinationAddress: trip.adresse_arrivee
+                    }
                 }
             };
 
