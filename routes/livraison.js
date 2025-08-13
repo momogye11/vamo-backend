@@ -770,4 +770,373 @@ router.post('/cancel', async (req, res) => {
     }
 });
 
+// =====================================
+// ENDPOINTS POUR CHANGEMENTS D'ÉTAT
+// Copiés de trips.js et adaptés pour les livraisons
+// =====================================
+
+// API spécifique pour marquer l'arrivée au pickup avec notification WebSocket
+router.post('/arrived-pickup', async (req, res) => {
+    const { driverId, deliveryId } = req.body;
+
+    if (!driverId || !deliveryId) {
+        return res.status(400).json({
+            success: false,
+            error: 'driverId et deliveryId sont requis'
+        });
+    }
+
+    try {
+        console.log(`🛵 Delivery driver ${driverId} arrived at pickup for delivery ${deliveryId}`);
+
+        await pool.query('BEGIN');
+
+        // Vérifier que la livraison existe et appartient au livreur
+        const currentDelivery = await pool.query(`
+            SELECT etat_livraison, id_client, adresse_depart
+            FROM Livraison 
+            WHERE id_livraison = $1 AND id_livreur = $2
+        `, [deliveryId, driverId]);
+
+        if (currentDelivery.rowCount === 0) {
+            await pool.query('ROLLBACK');
+            return res.status(404).json({
+                success: false,
+                error: 'Livraison non trouvée ou non assignée à ce livreur'
+            });
+        }
+
+        const delivery = currentDelivery.rows[0];
+
+        // Vérifier que la livraison est dans le bon état
+        if (delivery.etat_livraison !== 'acceptee') {
+            await pool.query('ROLLBACK');
+            return res.status(400).json({
+                success: false,
+                error: `Livraison doit être acceptée pour marquer l'arrivée au pickup. État actuel: ${delivery.etat_livraison}`
+            });
+        }
+
+        // Mettre à jour le statut de la livraison
+        const updateResult = await pool.query(`
+            UPDATE Livraison 
+            SET etat_livraison = 'arrivee_pickup', 
+                date_heure_arrivee_pickup = CURRENT_TIMESTAMP
+            WHERE id_livraison = $1 AND id_livreur = $2
+            RETURNING date_heure_arrivee_pickup
+        `, [deliveryId, driverId]);
+
+        if (updateResult.rowCount === 0) {
+            await pool.query('ROLLBACK');
+            return res.status(500).json({
+                success: false,
+                error: 'Échec de la mise à jour du statut'
+            });
+        }
+
+        await pool.query('COMMIT');
+
+        // Récupérer les informations du livreur
+        const driverData = await pool.query(`
+            SELECT prenom, nom, telephone
+            FROM Livreur 
+            WHERE id_livreur = $1
+        `, [driverId]);
+
+        // 🔌 WEBSOCKET NOTIFICATION AU CLIENT
+        try {
+            const { notifyClient } = require('../websocket/websocketManager');
+            
+            const notification = {
+                type: 'driver_arrived_pickup',
+                data: {
+                    deliveryId: deliveryId,
+                    message: 'Votre livreur est arrivé au point de récupération',
+                    driver: driverData.rows[0],
+                    timestamp: new Date().toISOString()
+                }
+            };
+
+            // Notifier le client (si connecté via WebSocket)
+            const notificationSent = await notifyClient(delivery.id_client, notification);
+            if (notificationSent) {
+                console.log(`✅ Client ${delivery.id_client} successfully notified of driver arrival`);
+            } else {
+                console.log(`⚠️ Client ${delivery.id_client} was NOT notified (not connected or error)`);
+            }
+        } catch (wsError) {
+            console.error('⚠️ WebSocket notification failed (delivery status updated):', wsError.message);
+            // Ne pas faire échouer la requête si la notification échoue
+        }
+
+        console.log(`✅ Delivery ${deliveryId} marked as arrived at pickup`);
+
+        res.json({
+            success: true,
+            message: 'Arrivée au pickup confirmée',
+            delivery: {
+                id: deliveryId,
+                status: 'arrivee_pickup',
+                arrivedAt: updateResult.rows[0].date_heure_arrivee_pickup
+            },
+            driver: driverData.rows[0]
+        });
+
+    } catch (err) {
+        await pool.query('ROLLBACK');
+        console.error("❌ Error marking arrival at pickup:", err);
+        res.status(500).json({
+            success: false,
+            error: 'Erreur serveur'
+        });
+    }
+});
+
+// API spécifique pour démarrer la livraison avec notification WebSocket
+router.post('/start-delivery', async (req, res) => {
+    const { driverId, deliveryId } = req.body;
+
+    if (!driverId || !deliveryId) {
+        return res.status(400).json({
+            success: false,
+            error: 'driverId et deliveryId sont requis'
+        });
+    }
+
+    try {
+        console.log(`🛵 Delivery driver ${driverId} starting delivery ${deliveryId}`);
+
+        await pool.query('BEGIN');
+
+        // Vérifier que la livraison existe et appartient au livreur
+        const currentDelivery = await pool.query(`
+            SELECT etat_livraison, id_client, adresse_arrivee
+            FROM Livraison 
+            WHERE id_livraison = $1 AND id_livreur = $2
+        `, [deliveryId, driverId]);
+
+        if (currentDelivery.rowCount === 0) {
+            await pool.query('ROLLBACK');
+            return res.status(404).json({
+                success: false,
+                error: 'Livraison non trouvée ou non assignée à ce livreur'
+            });
+        }
+
+        const delivery = currentDelivery.rows[0];
+
+        // Vérifier que la livraison est dans le bon état
+        if (delivery.etat_livraison !== 'arrivee_pickup') {
+            await pool.query('ROLLBACK');
+            return res.status(400).json({
+                success: false,
+                error: `Livraison doit être arrivée au pickup pour démarrer. État actuel: ${delivery.etat_livraison}`
+            });
+        }
+
+        // Mettre à jour le statut de la livraison
+        const updateResult = await pool.query(`
+            UPDATE Livraison 
+            SET etat_livraison = 'en_cours', 
+                date_heure_debut_livraison = CURRENT_TIMESTAMP
+            WHERE id_livraison = $1 AND id_livreur = $2
+            RETURNING date_heure_debut_livraison
+        `, [deliveryId, driverId]);
+
+        if (updateResult.rowCount === 0) {
+            await pool.query('ROLLBACK');
+            return res.status(500).json({
+                success: false,
+                error: 'Échec de la mise à jour du statut'
+            });
+        }
+
+        await pool.query('COMMIT');
+
+        // Récupérer les informations du livreur
+        const driverData = await pool.query(`
+            SELECT prenom, nom, telephone
+            FROM Livreur 
+            WHERE id_livreur = $1
+        `, [driverId]);
+
+        // 🔌 WEBSOCKET NOTIFICATION AU CLIENT
+        try {
+            const { notifyClient } = require('../websocket/websocketManager');
+            
+            const notification = {
+                type: 'trip_started',
+                data: {
+                    deliveryId: deliveryId,
+                    message: 'Votre livraison a commencé',
+                    driver: driverData.rows[0],
+                    destination: delivery.adresse_arrivee,
+                    timestamp: new Date().toISOString()
+                }
+            };
+
+            // Notifier le client (si connecté via WebSocket)
+            const notificationSent = await notifyClient(delivery.id_client, notification);
+            if (notificationSent) {
+                console.log(`✅ Client ${delivery.id_client} successfully notified of delivery start`);
+            } else {
+                console.log(`⚠️ Client ${delivery.id_client} was NOT notified (not connected or error)`);
+            }
+        } catch (wsError) {
+            console.error('⚠️ WebSocket notification failed (delivery status updated):', wsError.message);
+            // Ne pas faire échouer la requête si la notification échoue
+        }
+
+        console.log(`✅ Delivery ${deliveryId} started successfully`);
+
+        res.json({
+            success: true,
+            message: 'Livraison démarrée avec succès',
+            delivery: {
+                id: deliveryId,
+                status: 'en_cours',
+                startedAt: updateResult.rows[0].date_heure_debut_livraison,
+                destination: delivery.adresse_arrivee
+            },
+            driver: driverData.rows[0]
+        });
+
+    } catch (err) {
+        await pool.query('ROLLBACK');
+        console.error("❌ Error starting delivery:", err);
+        res.status(500).json({
+            success: false,
+            error: 'Erreur serveur'
+        });
+    }
+});
+
+// API spécifique pour terminer la livraison avec notification WebSocket
+router.post('/complete', async (req, res) => {
+    const { driverId, deliveryId } = req.body;
+
+    if (!driverId || !deliveryId) {
+        return res.status(400).json({
+            success: false,
+            error: 'driverId et deliveryId sont requis'
+        });
+    }
+
+    try {
+        console.log(`🛵 Delivery driver ${driverId} completing delivery ${deliveryId}`);
+
+        await pool.query('BEGIN');
+
+        // Vérifier que la livraison existe et appartient au livreur
+        const currentDelivery = await pool.query(`
+            SELECT etat_livraison, id_client, prix, adresse_arrivee
+            FROM Livraison 
+            WHERE id_livraison = $1 AND id_livreur = $2
+        `, [deliveryId, driverId]);
+
+        if (currentDelivery.rowCount === 0) {
+            await pool.query('ROLLBACK');
+            return res.status(404).json({
+                success: false,
+                error: 'Livraison non trouvée ou non assignée à ce livreur'
+            });
+        }
+
+        const delivery = currentDelivery.rows[0];
+
+        // Vérifier que la livraison est dans le bon état
+        if (delivery.etat_livraison !== 'en_cours') {
+            await pool.query('ROLLBACK');
+            return res.status(400).json({
+                success: false,
+                error: `Livraison doit être en cours pour être terminée. État actuel: ${delivery.etat_livraison}`
+            });
+        }
+
+        // Mettre à jour le statut de la livraison
+        const updateResult = await pool.query(`
+            UPDATE Livraison 
+            SET etat_livraison = 'terminee', 
+                date_heure_arrivee = CURRENT_TIMESTAMP
+            WHERE id_livraison = $1 AND id_livreur = $2
+            RETURNING date_heure_arrivee, prix
+        `, [deliveryId, driverId]);
+
+        if (updateResult.rowCount === 0) {
+            await pool.query('ROLLBACK');
+            return res.status(500).json({
+                success: false,
+                error: 'Échec de la mise à jour du statut'
+            });
+        }
+
+        await pool.query('COMMIT');
+
+        // Récupérer les informations du livreur
+        const driverData = await pool.query(`
+            SELECT prenom, nom, telephone
+            FROM Livreur 
+            WHERE id_livreur = $1
+        `, [driverId]);
+
+        const finalPrice = updateResult.rows[0].prix;
+
+        // 🔌 WEBSOCKET NOTIFICATION AU CLIENT
+        try {
+            const { notifyClient } = require('../websocket/websocketManager');
+            
+            const notification = {
+                type: 'trip_completed',
+                data: {
+                    deliveryId: deliveryId,
+                    message: 'Votre livraison est terminée',
+                    driver: driverData.rows[0],
+                    finalPrice: finalPrice,
+                    currency: 'FCFA',
+                    timestamp: new Date().toISOString(),
+                    deliveryData: {
+                        id: deliveryId,
+                        finalPrice: finalPrice,
+                        driverName: `${driverData.rows[0].prenom} ${driverData.rows[0].nom}`
+                    }
+                }
+            };
+
+            // Notifier le client (si connecté via WebSocket)
+            const notificationSent = await notifyClient(delivery.id_client, notification);
+            if (notificationSent) {
+                console.log(`✅ Client ${delivery.id_client} successfully notified of delivery completion`);
+            } else {
+                console.log(`⚠️ Client ${delivery.id_client} was NOT notified (not connected or error)`);
+            }
+        } catch (wsError) {
+            console.error('⚠️ WebSocket notification failed (delivery status updated):', wsError.message);
+            // Ne pas faire échouer la requête si la notification échoue
+        }
+
+        console.log(`✅ Delivery ${deliveryId} completed successfully with final price: ${finalPrice} FCFA`);
+
+        res.json({
+            success: true,
+            message: 'Livraison terminée avec succès',
+            delivery: {
+                id: deliveryId,
+                status: 'terminee',
+                completedAt: updateResult.rows[0].date_heure_arrivee,
+                finalPrice: finalPrice,
+                currency: 'FCFA'
+            },
+            driver: driverData.rows[0]
+        });
+
+    } catch (err) {
+        await pool.query('ROLLBACK');
+        console.error("❌ Error completing delivery:", err);
+        res.status(500).json({
+            success: false,
+            error: 'Erreur serveur'
+        });
+    }
+});
+
 module.exports = router;

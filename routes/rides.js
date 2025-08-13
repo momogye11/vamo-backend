@@ -319,15 +319,6 @@ router.get('/search/:searchId/status', async (req, res) => {
                         year: driverData.annee_vehicule,
                         licensePlate: driverData.plaque_immatriculation || 'DK-0000-XX'
                     },
-                    // Position du chauffeur dans le format attendu par le frontend
-                    currentPosition: {
-                        latitude: parseFloat(driverData.latitude) || 14.7167,
-                        longitude: parseFloat(driverData.longitude) || -17.4677
-                    },
-                    position: {
-                        latitude: parseFloat(driverData.latitude) || 14.7167,
-                        longitude: parseFloat(driverData.longitude) || -17.4677
-                    },
                     location: {
                         latitude: parseFloat(driverData.latitude) || 14.7167,
                         longitude: parseFloat(driverData.longitude) || -17.4677
