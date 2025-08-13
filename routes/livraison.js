@@ -20,6 +20,7 @@ function calculateDistance(coord1, coord2) {
 // Start a delivery search for a delivery request
 router.post('/search', async (req, res) => {
     const {
+        clientId,
         origin,
         destination,
         deliveryType,
@@ -156,6 +157,7 @@ router.post('/search', async (req, res) => {
         // Create a delivery request in the database
         const deliveryResult = await pool.query(`
             INSERT INTO Livraison (
+                id_client,
                 adresse_depart,
                 adresse_arrivee,
                 latitude_depart,
@@ -172,9 +174,10 @@ router.post('/search', async (req, res) => {
                 mode_paiement,
                 description_colis,
                 date_heure_demande
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'en_attente', $11, $12, $13, $14, CURRENT_TIMESTAMP)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'en_attente', $12, $13, $14, $15, CURRENT_TIMESTAMP)
             RETURNING id_livraison
         `, [
+            clientId,
             originAddress,
             destinationAddress,
             parseFloat(originCoords.lat || originCoords.latitude),
