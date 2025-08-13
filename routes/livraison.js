@@ -844,7 +844,7 @@ router.post('/arrived-pickup', async (req, res) => {
 
         // 🔌 WEBSOCKET NOTIFICATION AU CLIENT
         try {
-            const { notifyClient } = require('../websocket/websocketManager');
+            const { notifyClient } = require('./websocket');
             
             const notification = {
                 type: 'driver_arrived_pickup',
@@ -960,7 +960,7 @@ router.post('/start-delivery', async (req, res) => {
 
         // 🔌 WEBSOCKET NOTIFICATION AU CLIENT
         try {
-            const { notifyClient } = require('../websocket/websocketManager');
+            const { notifyClient } = require('./websocket');
             
             const notification = {
                 type: 'trip_started',
@@ -1090,7 +1090,7 @@ router.post('/complete', async (req, res) => {
 
         // 🔌 WEBSOCKET NOTIFICATION AU CLIENT
         try {
-            const { notifyClient } = require('../websocket/websocketManager');
+            const { notifyClient } = require('./websocket');
             
             const notification = {
                 type: 'trip_completed',
