@@ -1070,6 +1070,15 @@ router.post('/complete', async (req, res) => {
             });
         }
 
+        // 🔧 Remettre le livreur comme disponible après completion (comme les chauffeurs)
+        await pool.query(`
+            UPDATE Livreur 
+            SET disponibilite = true 
+            WHERE id_livreur = $1
+        `, [driverId]);
+        
+        console.log(`✅ Livreur ${driverId} is now available again after completing delivery`);
+
         await pool.query('COMMIT');
 
         // Récupérer les informations du livreur

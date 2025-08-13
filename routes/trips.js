@@ -157,6 +157,15 @@ router.post('/accept', async (req, res) => {
             });
         }
 
+        // 🔧 Marquer le chauffeur comme indisponible pendant la course
+        await db.query(`
+            UPDATE Chauffeur 
+            SET disponibilite = false 
+            WHERE id_chauffeur = $1
+        `, [driverId]);
+        
+        console.log(`✅ Chauffeur ${driverId} is now unavailable during the trip`);
+
         await db.query('COMMIT');
 
         const trip = updateResult.rows[0];
@@ -609,6 +618,15 @@ router.post('/driver-cancel', async (req, res) => {
             WHERE id_course = $1 AND id_chauffeur = $2
         `, [tripId, driverId]);
 
+        // 🔧 Remettre le chauffeur comme disponible après annulation
+        await db.query(`
+            UPDATE Chauffeur 
+            SET disponibilite = true 
+            WHERE id_chauffeur = $1
+        `, [driverId]);
+        
+        console.log(`✅ Chauffeur ${driverId} is now available again after cancelling trip`);
+
         await db.query('COMMIT');
 
         console.log(`✅ Trip ${tripId} cancelled successfully`);
@@ -1026,6 +1044,15 @@ router.post('/complete', async (req, res) => {
                 }
             };
         }
+
+        // 🔧 Remettre le chauffeur comme disponible après completion
+        await db.query(`
+            UPDATE Chauffeur 
+            SET disponibilite = true 
+            WHERE id_chauffeur = $1
+        `, [driverId]);
+        
+        console.log(`✅ Chauffeur ${driverId} is now available again after completing trip`);
 
         await db.query('COMMIT');
 
