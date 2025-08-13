@@ -820,10 +820,9 @@ router.post('/arrived-pickup', async (req, res) => {
         // Mettre à jour le statut de la livraison
         const updateResult = await pool.query(`
             UPDATE Livraison 
-            SET etat_livraison = 'arrivee_pickup', 
-                date_heure_arrivee_pickup = CURRENT_TIMESTAMP
+            SET etat_livraison = 'arrivee_pickup'
             WHERE id_livraison = $1 AND id_livreur = $2
-            RETURNING date_heure_arrivee_pickup
+            RETURNING etat_livraison, date_heure_depart
         `, [deliveryId, driverId]);
 
         if (updateResult.rowCount === 0) {
@@ -877,7 +876,7 @@ router.post('/arrived-pickup', async (req, res) => {
             delivery: {
                 id: deliveryId,
                 status: 'arrivee_pickup',
-                arrivedAt: updateResult.rows[0].date_heure_arrivee_pickup
+                arrivedAt: new Date().toISOString()
             },
             driver: driverData.rows[0]
         });
@@ -937,10 +936,9 @@ router.post('/start-delivery', async (req, res) => {
         // Mettre à jour le statut de la livraison
         const updateResult = await pool.query(`
             UPDATE Livraison 
-            SET etat_livraison = 'en_cours', 
-                date_heure_debut_livraison = CURRENT_TIMESTAMP
+            SET etat_livraison = 'en_cours'
             WHERE id_livraison = $1 AND id_livreur = $2
-            RETURNING date_heure_debut_livraison
+            RETURNING etat_livraison
         `, [deliveryId, driverId]);
 
         if (updateResult.rowCount === 0) {
@@ -995,7 +993,7 @@ router.post('/start-delivery', async (req, res) => {
             delivery: {
                 id: deliveryId,
                 status: 'en_cours',
-                startedAt: updateResult.rows[0].date_heure_debut_livraison,
+                startedAt: new Date().toISOString(),
                 destination: delivery.adresse_arrivee
             },
             driver: driverData.rows[0]
