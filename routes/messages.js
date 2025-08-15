@@ -100,20 +100,35 @@ router.post('/trip/send', async (req, res) => {
         let receiverId = null;
         let receiverType = null;
         
-        if (senderType === 'client') {
-            // Si c'est un client qui envoie, récupérer l'ID du chauffeur
-            const tripQuery = 'SELECT id_chauffeur FROM Course WHERE id_course = $1';
-            const tripResult = await pool.query(tripQuery, [tripId]);
-            if (tripResult.rows.length > 0) {
-                receiverId = tripResult.rows[0].id_chauffeur;
-                receiverType = 'chauffeur';
+        // Vérifier si tripId est un vrai ID de course (nombre) ou un ID temporaire (string)
+        const isRealTripId = !isNaN(tripId) && Number.isInteger(Number(tripId));
+        
+        if (isRealTripId) {
+            if (senderType === 'client') {
+                // Si c'est un client qui envoie, récupérer l'ID du chauffeur
+                const tripQuery = 'SELECT id_chauffeur FROM Course WHERE id_course = $1';
+                const tripResult = await pool.query(tripQuery, [parseInt(tripId)]);
+                if (tripResult.rows.length > 0) {
+                    receiverId = tripResult.rows[0].id_chauffeur;
+                    receiverType = 'chauffeur';
+                }
+            } else if (senderType === 'chauffeur') {
+                // Si c'est un chauffeur qui envoie, récupérer l'ID du client
+                const tripQuery = 'SELECT id_client FROM Course WHERE id_course = $1';
+                const tripResult = await pool.query(tripQuery, [parseInt(tripId)]);
+                if (tripResult.rows.length > 0) {
+                    receiverId = tripResult.rows[0].id_client;
+                    receiverType = 'client';
+                }
             }
-        } else if (senderType === 'chauffeur') {
-            // Si c'est un chauffeur qui envoie, récupérer l'ID du client
-            const tripQuery = 'SELECT id_client FROM Course WHERE id_course = $1';
-            const tripResult = await pool.query(tripQuery, [tripId]);
-            if (tripResult.rows.length > 0) {
-                receiverId = tripResult.rows[0].id_client;
+        } else {
+            // Pour les IDs temporaires, utiliser des valeurs par défaut
+            console.log('🔍 Using temporary trip ID, setting default receiver');
+            if (senderType === 'client') {
+                receiverId = 1; // ID du chauffeur par défaut
+                receiverType = 'chauffeur';
+            } else if (senderType === 'chauffeur') {
+                receiverId = 1; // ID du client par défaut  
                 receiverType = 'client';
             }
         }
@@ -157,20 +172,35 @@ router.post('/delivery/send', async (req, res) => {
         let receiverId = null;
         let receiverType = null;
         
-        if (senderType === 'client') {
-            // Si c'est un client qui envoie, récupérer l'ID du livreur
-            const deliveryQuery = 'SELECT id_livreur FROM Livraison WHERE id_livraison = $1';
-            const deliveryResult = await pool.query(deliveryQuery, [tripId]);
-            if (deliveryResult.rows.length > 0) {
-                receiverId = deliveryResult.rows[0].id_livreur;
-                receiverType = 'livreur';
+        // Vérifier si tripId est un vrai ID de livraison (nombre) ou un ID temporaire (string)
+        const isRealTripId = !isNaN(tripId) && Number.isInteger(Number(tripId));
+        
+        if (isRealTripId) {
+            if (senderType === 'client') {
+                // Si c'est un client qui envoie, récupérer l'ID du livreur
+                const deliveryQuery = 'SELECT id_livreur FROM Livraison WHERE id_livraison = $1';
+                const deliveryResult = await pool.query(deliveryQuery, [parseInt(tripId)]);
+                if (deliveryResult.rows.length > 0) {
+                    receiverId = deliveryResult.rows[0].id_livreur;
+                    receiverType = 'livreur';
+                }
+            } else if (senderType === 'livreur') {
+                // Si c'est un livreur qui envoie, récupérer l'ID du client
+                const deliveryQuery = 'SELECT id_client FROM Livraison WHERE id_livraison = $1';
+                const deliveryResult = await pool.query(deliveryQuery, [parseInt(tripId)]);
+                if (deliveryResult.rows.length > 0) {
+                    receiverId = deliveryResult.rows[0].id_client;
+                    receiverType = 'client';
+                }
             }
-        } else if (senderType === 'livreur') {
-            // Si c'est un livreur qui envoie, récupérer l'ID du client
-            const deliveryQuery = 'SELECT id_client FROM Livraison WHERE id_livraison = $1';
-            const deliveryResult = await pool.query(deliveryQuery, [tripId]);
-            if (deliveryResult.rows.length > 0) {
-                receiverId = deliveryResult.rows[0].id_client;
+        } else {
+            // Pour les IDs temporaires, utiliser des valeurs par défaut
+            console.log('🔍 Using temporary delivery ID, setting default receiver');
+            if (senderType === 'client') {
+                receiverId = 1; // ID du livreur par défaut
+                receiverType = 'livreur';
+            } else if (senderType === 'livreur') {
+                receiverId = 1; // ID du client par défaut  
                 receiverType = 'client';
             }
         }
