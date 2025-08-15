@@ -623,6 +623,16 @@ try {
     console.error('❌ Error loading notifications routes:', error);
 }
 
+// Load messages routes for chat functionality
+console.log('Loading messages routes...');
+try {
+    const messagesRouter = require('./routes/messages');
+    app.use('/api/messages', messagesRouter);
+    console.log('✅ Messages routes loaded successfully');
+} catch (error) {
+    console.error('❌ Error loading messages routes:', error);
+}
+
 
 // Load WebSocket/Long-polling routes for React Native
 console.log('Loading WebSocket routes...');
