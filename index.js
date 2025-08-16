@@ -510,6 +510,17 @@ app.use('/api', require('./routes/verify-otp'));
 // 🔐 Authentication routes
 app.use('/api/auth', require('./routes/auth'));
 
+// 🔧 Admin routes
+console.log('Loading admin routes...');
+try {
+    const adminRouter = require('./routes/admin');
+    app.use('/api/admin', adminRouter);
+    console.log('✅ Admin routes loaded successfully');
+} catch (error) {
+    console.error('❌ Error loading admin routes:', error);
+    console.error('❌ Stack trace:', error.stack);
+}
+
 // 👇 Tu peux aussi ajouter les autres si tu veux
 app.use('/api/client', require('./routes/client'));
 
