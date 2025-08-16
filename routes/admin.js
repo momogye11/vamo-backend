@@ -90,7 +90,7 @@ router.get('/dashboard/stats', authenticateAdmin, async (req, res) => {
             db.query('SELECT COUNT(*) as count FROM Chauffeur'),
             db.query('SELECT COUNT(*) as count FROM Livreur'),
             db.query("SELECT COUNT(*) as count FROM Course WHERE etat_course = 'en_cours'"),
-            db.query("SELECT COUNT(*) as count FROM Livraison WHERE statut = 'en_cours'"),
+            db.query("SELECT COUNT(*) as count FROM Livraison WHERE etat_livraison = 'en_cours'"),
             db.query("SELECT COUNT(*) as count FROM Course WHERE DATE(date_heure_depart) = CURRENT_DATE"),
             db.query("SELECT COUNT(*) as count FROM Livraison WHERE DATE(date_creation) = CURRENT_DATE"),
             db.query(`
@@ -367,27 +367,27 @@ router.get('/deliveries', authenticateAdmin, async (req, res) => {
         let queryParams = [limit, offset];
 
         if (status) {
-            whereClause = 'WHERE l.statut = $3';
+            whereClause = 'WHERE l.etat_livraison = $3';
             queryParams.push(status);
         }
 
         const result = await db.query(`
             SELECT 
-                l.id, l.lieu_recuperation, l.lieu_livraison, l.prix_livraison,
-                l.statut, l.created_at, l.description_colis,
+                l.id_livraison as id, l.adresse_depart as lieu_recuperation, l.adresse_arrivee as lieu_livraison, l.prix as prix_livraison,
+                l.etat_livraison as statut, l.date_heure_depart as created_at, l.instructions as description_colis,
                 cl.nom as client_nom, cl.prenom as client_prenom, cl.telephone as client_telephone,
                 li.nom as livreur_nom, li.prenom as livreur_prenom
-            FROM livraison l
-            LEFT JOIN client cl ON cl.id = l.client_id
-            LEFT JOIN livreur li ON li.id = l.livreur_id
+            FROM Livraison l
+            LEFT JOIN Client cl ON cl.id_client = l.id_client
+            LEFT JOIN Livreur li ON li.id_livreur = l.id_livreur
             ${whereClause}
-            ORDER BY l.created_at DESC 
+            ORDER BY l.date_heure_depart DESC 
             LIMIT $1 OFFSET $2
         `, queryParams);
 
         const countQuery = status ? 
-            'SELECT COUNT(*) as total FROM livraison WHERE statut = $1' :
-            'SELECT COUNT(*) as total FROM livraison';
+            'SELECT COUNT(*) as total FROM Livraison WHERE etat_livraison = $1' :
+            'SELECT COUNT(*) as total FROM Livraison';
         const countParams = status ? [status] : [];
         const countResult = await db.query(countQuery, countParams);
         const total = parseInt(countResult.rows[0].total);
@@ -418,7 +418,7 @@ router.get('/financial/stats', authenticateAdmin, async (req, res) => {
         let queryParams = [];
         
         if (startDate && endDate) {
-            dateFilter = 'WHERE DATE(created_at) BETWEEN $1 AND $2';
+            dateFilter = 'WHERE DATE(date_heure_depart) BETWEEN $1 AND $2';
             queryParams = [startDate, endDate];
         }
 
@@ -426,16 +426,16 @@ router.get('/financial/stats', authenticateAdmin, async (req, res) => {
             db.query(`
                 SELECT 
                     COUNT(*) as total_trips,
-                    COALESCE(SUM(prix_course), 0) as total_revenue
-                FROM course 
-                ${dateFilter} AND statut = 'termine'
+                    COALESCE(SUM(prix), 0) as total_revenue
+                FROM Course 
+                ${dateFilter} AND etat_course = 'termine'
             `, queryParams),
             db.query(`
                 SELECT 
                     COUNT(*) as total_deliveries,
-                    COALESCE(SUM(prix_livraison), 0) as total_revenue
-                FROM livraison 
-                ${dateFilter} AND statut = 'livre'
+                    COALESCE(SUM(prix), 0) as total_revenue
+                FROM Livraison 
+                ${dateFilter} AND etat_livraison = 'livre'
             `, queryParams)
         ]);
 
@@ -494,17 +494,17 @@ router.get('/deliveries/active', authenticateAdmin, async (req, res) => {
     try {
         const result = await db.query(`
             SELECT 
-                l.id, l.lieu_recuperation, l.lieu_livraison, l.prix_livraison,
-                l.statut, l.created_at, l.description_colis,
+                l.id_livraison as id, l.adresse_depart as lieu_recuperation, l.adresse_arrivee as lieu_livraison, l.prix as prix_livraison,
+                l.etat_livraison as statut, l.date_heure_depart as created_at, l.instructions as description_colis,
                 cl.nom as client_nom, cl.prenom as client_prenom,
                 li.nom as livreur_nom, li.prenom as livreur_prenom,
-                pl.latitude, pl.longitude, pl.last_update
-            FROM livraison l
-            LEFT JOIN client cl ON cl.id = l.client_id
-            LEFT JOIN livreur li ON li.id = l.livreur_id
-            LEFT JOIN positionlivreur pl ON pl.livreur_id = li.id
-            WHERE l.statut IN ('en_cours', 'en_attente', 'accepte', 'en_livraison')
-            ORDER BY l.created_at DESC
+                pl.latitude, pl.longitude, pl.derniere_maj as last_update
+            FROM Livraison l
+            LEFT JOIN Client cl ON cl.id_client = l.id_client
+            LEFT JOIN Livreur li ON li.id_livreur = l.id_livreur
+            LEFT JOIN PositionLivreur pl ON pl.id_livreur = li.id_livreur
+            WHERE l.etat_livraison IN ('en_cours', 'en_attente', 'accepte', 'en_livraison')
+            ORDER BY l.date_heure_depart DESC
         `);
 
         res.json({ success: true, activeDeliveries: result.rows });
