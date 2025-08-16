@@ -86,20 +86,20 @@ router.get('/dashboard/stats', authenticateAdmin, async (req, res) => {
             livraisonsTodayResult,
             revenueResult
         ] = await Promise.all([
-            db.query('SELECT COUNT(*) as count FROM client'),
-            db.query('SELECT COUNT(*) as count FROM chauffeur'),
-            db.query('SELECT COUNT(*) as count FROM livreur'),
-            db.query("SELECT COUNT(*) as count FROM course WHERE statut = 'en_cours'"),
-            db.query("SELECT COUNT(*) as count FROM livraison WHERE statut = 'en_cours'"),
-            db.query("SELECT COUNT(*) as count FROM course WHERE DATE(created_at) = CURRENT_DATE"),
-            db.query("SELECT COUNT(*) as count FROM livraison WHERE DATE(created_at) = CURRENT_DATE"),
+            db.query('SELECT COUNT(*) as count FROM Client'),
+            db.query('SELECT COUNT(*) as count FROM Chauffeur'),
+            db.query('SELECT COUNT(*) as count FROM Livreur'),
+            db.query("SELECT COUNT(*) as count FROM Course WHERE etat_course = 'en_cours'"),
+            db.query("SELECT COUNT(*) as count FROM Livraison WHERE statut = 'en_cours'"),
+            db.query("SELECT COUNT(*) as count FROM Course WHERE DATE(date_heure_depart) = CURRENT_DATE"),
+            db.query("SELECT COUNT(*) as count FROM Livraison WHERE DATE(date_creation) = CURRENT_DATE"),
             db.query(`
                 SELECT 
-                    COALESCE(SUM(CASE WHEN DATE(created_at) = CURRENT_DATE THEN prix_course END), 0) as today_revenue,
-                    COALESCE(SUM(CASE WHEN DATE_PART('month', created_at) = DATE_PART('month', CURRENT_DATE) 
-                                     AND DATE_PART('year', created_at) = DATE_PART('year', CURRENT_DATE) 
-                                     THEN prix_course END), 0) as monthly_revenue
-                FROM course WHERE statut = 'termine'
+                    COALESCE(SUM(CASE WHEN DATE(date_heure_depart) = CURRENT_DATE THEN prix END), 0) as today_revenue,
+                    COALESCE(SUM(CASE WHEN DATE_PART('month', date_heure_depart) = DATE_PART('month', CURRENT_DATE) 
+                                     AND DATE_PART('year', date_heure_depart) = DATE_PART('year', CURRENT_DATE) 
+                                     THEN prix END), 0) as monthly_revenue
+                FROM Course WHERE etat_course = 'termine'
             `)
         ]);
 
@@ -133,15 +133,15 @@ router.get('/clients', authenticateAdmin, async (req, res) => {
 
         const result = await db.query(`
             SELECT 
-                id, nom, prenom, telephone, 
-                created_at, is_active,
-                (SELECT COUNT(*) FROM course WHERE client_id = client.id) as total_trips
-            FROM client 
-            ORDER BY created_at DESC 
+                id_client as id, nom, prenom, telephone, 
+                date_creation as created_at,
+                (SELECT COUNT(*) FROM Course WHERE id_client = Client.id_client) as total_trips
+            FROM Client 
+            ORDER BY date_creation DESC 
             LIMIT $1 OFFSET $2
         `, [limit, offset]);
 
-        const countResult = await db.query('SELECT COUNT(*) as total FROM client');
+        const countResult = await db.query('SELECT COUNT(*) as total FROM Client');
         const total = parseInt(countResult.rows[0].total);
 
         res.json({
@@ -170,19 +170,19 @@ router.get('/drivers', authenticateAdmin, async (req, res) => {
 
         const result = await db.query(`
             SELECT 
-                c.id, c.nom, c.prenom, c.telephone, c.email,
-                c.statut_verification, c.date_inscription, c.is_active,
-                c.photo_selfie, c.photo_cni, c.numero_permis,
-                v.marque, v.modele, v.annee, v.couleur, v.numero_immatriculation,
-                (SELECT COUNT(*) FROM course WHERE chauffeur_id = c.id) as total_trips,
-                (SELECT AVG(note) FROM note WHERE chauffeur_id = c.id) as average_rating
-            FROM chauffeur c
-            LEFT JOIN vehicule v ON v.chauffeur_id = c.id
-            ORDER BY c.date_inscription DESC 
+                c.id_chauffeur as id, c.nom, c.prenom, c.telephone,
+                c.statut_validation as statut_verification, c.date_creation as date_inscription,
+                c.photo_selfie, c.photo_cni,
+                c.marque_vehicule as marque, c.annee_vehicule as annee,
+                c.plaque_immatriculation as numero_immatriculation,
+                (SELECT COUNT(*) FROM Course WHERE id_chauffeur = c.id_chauffeur) as total_trips,
+                (SELECT AVG(note) FROM Note WHERE id_chauffeur = c.id_chauffeur) as average_rating
+            FROM Chauffeur c
+            ORDER BY c.date_creation DESC 
             LIMIT $1 OFFSET $2
         `, [limit, offset]);
 
-        const countResult = await db.query('SELECT COUNT(*) as total FROM chauffeur');
+        const countResult = await db.query('SELECT COUNT(*) as total FROM Chauffeur');
         const total = parseInt(countResult.rows[0].total);
 
         res.json({
@@ -211,17 +211,17 @@ router.get('/delivery-persons', authenticateAdmin, async (req, res) => {
 
         const result = await db.query(`
             SELECT 
-                l.id, l.nom, l.prenom, l.telephone, l.email,
-                l.statut_verification, l.date_inscription, l.is_active,
+                l.id_livreur as id, l.nom, l.prenom, l.telephone,
+                l.statut_validation as statut_verification, l.date_creation as date_inscription,
                 l.photo_selfie, l.photo_cni, l.type_vehicule,
-                (SELECT COUNT(*) FROM livraison WHERE livreur_id = l.id) as total_deliveries,
-                (SELECT AVG(note) FROM notelivraison WHERE livreur_id = l.id) as average_rating
-            FROM livreur l
-            ORDER BY l.date_inscription DESC 
+                (SELECT COUNT(*) FROM Livraison WHERE id_livreur = l.id_livreur) as total_deliveries,
+                (SELECT AVG(note) FROM NoteLivraison WHERE id_livreur = l.id_livreur) as average_rating
+            FROM Livreur l
+            ORDER BY l.date_creation DESC 
             LIMIT $1 OFFSET $2
         `, [limit, offset]);
 
-        const countResult = await db.query('SELECT COUNT(*) as total FROM livreur');
+        const countResult = await db.query('SELECT COUNT(*) as total FROM Livreur');
         const total = parseInt(countResult.rows[0].total);
 
         res.json({
@@ -255,11 +255,10 @@ router.put('/drivers/:id/verify', authenticateAdmin, async (req, res) => {
         const isActive = action === 'approve';
 
         await db.query(`
-            UPDATE chauffeur 
-            SET statut_verification = $1, is_active = $2, 
-                verification_reason = $3, verified_at = CURRENT_TIMESTAMP
-            WHERE id = $4
-        `, [newStatus, isActive, reason || null, id]);
+            UPDATE Chauffeur 
+            SET statut_validation = $1, disponibilite = $2
+            WHERE id_chauffeur = $3
+        `, [newStatus, isActive, id]);
 
         res.json({ 
             success: true, 
@@ -286,11 +285,10 @@ router.put('/delivery-persons/:id/verify', authenticateAdmin, async (req, res) =
         const isActive = action === 'approve';
 
         await db.query(`
-            UPDATE livreur 
-            SET statut_verification = $1, is_active = $2,
-                verification_reason = $3, verified_at = CURRENT_TIMESTAMP
-            WHERE id = $4
-        `, [newStatus, isActive, reason || null, id]);
+            UPDATE Livreur 
+            SET statut_validation = $1, disponibilite = $2
+            WHERE id_livreur = $3
+        `, [newStatus, isActive, id]);
 
         res.json({ 
             success: true, 
@@ -315,27 +313,27 @@ router.get('/trips', authenticateAdmin, async (req, res) => {
         let queryParams = [limit, offset];
 
         if (status) {
-            whereClause = 'WHERE c.statut = $3';
+            whereClause = 'WHERE c.etat_course = $3';
             queryParams.push(status);
         }
 
         const result = await db.query(`
             SELECT 
-                c.id, c.lieu_depart, c.lieu_destination, c.prix_course,
-                c.statut, c.created_at, c.distance, c.duree,
+                c.id_course as id, c.adresse_depart as lieu_depart, c.adresse_arrivee as lieu_destination, c.prix as prix_course,
+                c.etat_course as statut, c.date_heure_depart as created_at, c.distance_km as distance, c.duree_min as duree,
                 cl.nom as client_nom, cl.prenom as client_prenom, cl.telephone as client_telephone,
                 ch.nom as chauffeur_nom, ch.prenom as chauffeur_prenom
-            FROM course c
-            LEFT JOIN client cl ON cl.id = c.client_id
-            LEFT JOIN chauffeur ch ON ch.id = c.chauffeur_id
+            FROM Course c
+            LEFT JOIN Client cl ON cl.id_client = c.id_client
+            LEFT JOIN Chauffeur ch ON ch.id_chauffeur = c.id_chauffeur
             ${whereClause}
-            ORDER BY c.created_at DESC 
+            ORDER BY c.date_heure_depart DESC 
             LIMIT $1 OFFSET $2
         `, queryParams);
 
         const countQuery = status ? 
-            'SELECT COUNT(*) as total FROM course WHERE statut = $1' :
-            'SELECT COUNT(*) as total FROM course';
+            'SELECT COUNT(*) as total FROM Course WHERE etat_course = $1' :
+            'SELECT COUNT(*) as total FROM Course';
         const countParams = status ? [status] : [];
         const countResult = await db.query(countQuery, countParams);
         const total = parseInt(countResult.rows[0].total);
@@ -470,17 +468,17 @@ router.get('/trips/active', authenticateAdmin, async (req, res) => {
     try {
         const result = await db.query(`
             SELECT 
-                c.id, c.lieu_depart, c.lieu_destination, c.prix_course,
-                c.statut, c.created_at,
+                c.id_course as id, c.adresse_depart as lieu_depart, c.adresse_arrivee as lieu_destination, c.prix as prix_course,
+                c.etat_course as statut, c.date_heure_depart as created_at,
                 cl.nom as client_nom, cl.prenom as client_prenom,
                 ch.nom as chauffeur_nom, ch.prenom as chauffeur_prenom,
-                pc.latitude, pc.longitude, pc.last_update
-            FROM course c
-            LEFT JOIN client cl ON cl.id = c.client_id
-            LEFT JOIN chauffeur ch ON ch.id = c.chauffeur_id
-            LEFT JOIN positionchauffeur pc ON pc.chauffeur_id = ch.id
-            WHERE c.statut IN ('en_cours', 'en_attente', 'accepte')
-            ORDER BY c.created_at DESC
+                pc.latitude, pc.longitude, pc.derniere_maj as last_update
+            FROM Course c
+            LEFT JOIN Client cl ON cl.id_client = c.id_client
+            LEFT JOIN Chauffeur ch ON ch.id_chauffeur = c.id_chauffeur
+            LEFT JOIN PositionChauffeur pc ON pc.id_chauffeur = ch.id_chauffeur
+            WHERE c.etat_course IN ('en_cours', 'en_attente', 'accepte')
+            ORDER BY c.date_heure_depart DESC
         `);
 
         res.json({ success: true, activeTrips: result.rows });
