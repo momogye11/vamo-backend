@@ -92,7 +92,7 @@ router.get('/dashboard/stats', authenticateAdmin, async (req, res) => {
             db.query("SELECT COUNT(*) as count FROM Course WHERE etat_course = 'en_cours'"),
             db.query("SELECT COUNT(*) as count FROM Livraison WHERE etat_livraison = 'en_cours'"),
             db.query("SELECT COUNT(*) as count FROM Course WHERE DATE(date_heure_depart) = CURRENT_DATE"),
-            db.query("SELECT COUNT(*) as count FROM Livraison WHERE DATE(date_creation) = CURRENT_DATE"),
+            db.query("SELECT COUNT(*) as count FROM Livraison WHERE DATE(date_heure_depart) = CURRENT_DATE"),
             db.query(`
                 SELECT 
                     COALESCE(SUM(CASE WHEN DATE(date_heure_depart) = CURRENT_DATE THEN prix END), 0) as today_revenue,
