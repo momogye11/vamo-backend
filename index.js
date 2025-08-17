@@ -535,6 +535,17 @@ try {
     console.error('❌ Stack trace:', error.stack);
 }
 
+// 🚀 Admin Advanced routes
+console.log('Loading admin advanced routes...');
+try {
+    const adminAdvancedRouter = require('./routes/admin-advanced');
+    app.use('/api/admin-advanced', adminAdvancedRouter);
+    console.log('✅ Admin advanced routes loaded successfully');
+} catch (error) {
+    console.error('❌ Error loading admin advanced routes:', error);
+    console.error('❌ Stack trace:', error.stack);
+}
+
 // 👇 Tu peux aussi ajouter les autres si tu veux
 app.use('/api/client', require('./routes/client'));
 
