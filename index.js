@@ -56,7 +56,21 @@ const uploadToCloudinary = async (file, folder = 'vamo') => {
     }
 };
 
-app.use(cors());
+// Configuration CORS pour autoriser le frontend Vercel
+const corsOptions = {
+    origin: [
+        'http://localhost:3000',
+        'http://localhost:3001', 
+        'http://localhost:5173',
+        'https://vamo-admin-q9yv.vercel.app',
+        /\.vercel\.app$/  // Autorise tous les domaines Vercel
+    ],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // Test endpoint

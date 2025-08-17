@@ -245,14 +245,27 @@ router.get('/delivery-persons', authenticateAdmin, async (req, res) => {
 router.put('/drivers/:id/verify', authenticateAdmin, async (req, res) => {
     try {
         const { id } = req.params;
-        const { action, reason } = req.body; // action: 'approve' ou 'reject'
+        const { action, reason } = req.body; // action: 'approve', 'reject', ou 'suspend'
 
-        if (!action || (action !== 'approve' && action !== 'reject')) {
+        if (!action || !['approve', 'reject', 'suspend'].includes(action)) {
             return res.status(400).json({ error: 'Action invalide' });
         }
 
-        const newStatus = action === 'approve' ? 'verifie' : 'rejete';
-        const isActive = action === 'approve';
+        let newStatus, isActive;
+        switch(action) {
+            case 'approve':
+                newStatus = 'verifie';
+                isActive = true;
+                break;
+            case 'reject':
+                newStatus = 'rejete';
+                isActive = false;
+                break;
+            case 'suspend':
+                newStatus = 'suspendu';
+                isActive = false;
+                break;
+        }
 
         await db.query(`
             UPDATE Chauffeur 
@@ -260,9 +273,22 @@ router.put('/drivers/:id/verify', authenticateAdmin, async (req, res) => {
             WHERE id_chauffeur = $3
         `, [newStatus, isActive, id]);
 
+        let message;
+        switch(action) {
+            case 'approve':
+                message = 'Chauffeur approuvé avec succès';
+                break;
+            case 'reject':
+                message = 'Chauffeur rejeté avec succès';
+                break;
+            case 'suspend':
+                message = 'Chauffeur suspendu avec succès';
+                break;
+        }
+
         res.json({ 
             success: true, 
-            message: `Chauffeur ${action === 'approve' ? 'approuvé' : 'rejeté'} avec succès`
+            message: message
         });
 
     } catch (error) {
@@ -277,12 +303,25 @@ router.put('/delivery-persons/:id/verify', authenticateAdmin, async (req, res) =
         const { id } = req.params;
         const { action, reason } = req.body;
 
-        if (!action || (action !== 'approve' && action !== 'reject')) {
+        if (!action || !['approve', 'reject', 'suspend'].includes(action)) {
             return res.status(400).json({ error: 'Action invalide' });
         }
 
-        const newStatus = action === 'approve' ? 'verifie' : 'rejete';
-        const isActive = action === 'approve';
+        let newStatus, isActive;
+        switch(action) {
+            case 'approve':
+                newStatus = 'verifie';
+                isActive = true;
+                break;
+            case 'reject':
+                newStatus = 'rejete';
+                isActive = false;
+                break;
+            case 'suspend':
+                newStatus = 'suspendu';
+                isActive = false;
+                break;
+        }
 
         await db.query(`
             UPDATE Livreur 
@@ -290,9 +329,22 @@ router.put('/delivery-persons/:id/verify', authenticateAdmin, async (req, res) =
             WHERE id_livreur = $3
         `, [newStatus, isActive, id]);
 
+        let message;
+        switch(action) {
+            case 'approve':
+                message = 'Livreur approuvé avec succès';
+                break;
+            case 'reject':
+                message = 'Livreur rejeté avec succès';
+                break;
+            case 'suspend':
+                message = 'Livreur suspendu avec succès';
+                break;
+        }
+
         res.json({ 
             success: true, 
-            message: `Livreur ${action === 'approve' ? 'approuvé' : 'rejeté'} avec succès`
+            message: message
         });
 
     } catch (error) {
