@@ -448,4 +448,209 @@ router.get('/search', authenticateAdmin, async (req, res) => {
     }
 });
 
+// 💰 NOUVEAUX ENDPOINTS POUR VRAIS REVENUS
+router.get('/revenus/chauffeurs', authenticateAdmin, async (req, res) => {
+    try {
+        console.log('💰 Récupération revenus chauffeurs...');
+        
+        // Revenus par chauffeur - semaine
+        const revenus7jours = await db.query(`
+            SELECT 
+                c.id_chauffeur,
+                c.nom,
+                c.prenom,
+                COUNT(co.id_course) as courses_total,
+                SUM(co.prix_total) as revenus_total
+            FROM Chauffeur c
+            LEFT JOIN Course co ON c.id_chauffeur = co.id_chauffeur
+            WHERE co.statut = 'terminee'
+            AND co.date_heure_debut >= CURRENT_DATE - INTERVAL '7 days'
+            GROUP BY c.id_chauffeur, c.nom, c.prenom
+            HAVING SUM(co.prix_total) > 0
+            ORDER BY revenus_total DESC
+        `);
+
+        // Revenus par chauffeur - mois  
+        const revenus30jours = await db.query(`
+            SELECT 
+                c.id_chauffeur,
+                c.nom,
+                c.prenom,
+                COUNT(co.id_course) as courses_total,
+                SUM(co.prix_total) as revenus_total,
+                AVG(co.prix_total) as prix_moyen
+            FROM Chauffeur c
+            LEFT JOIN Course co ON c.id_chauffeur = co.id_chauffeur
+            WHERE co.statut = 'terminee'
+            AND co.date_heure_debut >= CURRENT_DATE - INTERVAL '30 days'
+            GROUP BY c.id_chauffeur, c.nom, c.prenom
+            HAVING SUM(co.prix_total) > 0
+            ORDER BY revenus_total DESC
+        `);
+
+        // Totaux globaux chauffeurs
+        const totauxChauffeurs = await db.query(`
+            SELECT 
+                COUNT(DISTINCT c.id_chauffeur) as chauffeurs_actifs,
+                COUNT(co.id_course) as courses_total,
+                SUM(co.prix_total) as revenus_total_global,
+                AVG(co.prix_total) as prix_moyen_global
+            FROM Chauffeur c
+            JOIN Course co ON c.id_chauffeur = co.id_chauffeur
+            WHERE co.statut = 'terminee'
+            AND co.date_heure_debut >= CURRENT_DATE - INTERVAL '30 days'
+        `);
+
+        res.json({
+            success: true,
+            revenus_chauffeurs: {
+                semaine: revenus7jours.rows,
+                mois: revenus30jours.rows,
+                totaux: totauxChauffeurs.rows[0] || { 
+                    chauffeurs_actifs: 0, 
+                    courses_total: 0, 
+                    revenus_total_global: 0, 
+                    prix_moyen_global: 0 
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Erreur revenus chauffeurs:', error);
+        res.status(500).json({ error: 'Erreur récupération revenus chauffeurs' });
+    }
+});
+
+router.get('/revenus/livreurs', authenticateAdmin, async (req, res) => {
+    try {
+        console.log('💰 Récupération revenus livreurs...');
+        
+        // Revenus par livreur - semaine
+        const revenus7jours = await db.query(`
+            SELECT 
+                l.id_livreur,
+                l.nom,
+                l.prenom,
+                COUNT(li.id_livraison) as livraisons_total,
+                SUM(li.prix_total) as revenus_total
+            FROM Livreur l
+            LEFT JOIN Livraison li ON l.id_livreur = li.id_livreur
+            WHERE li.statut = 'livree'
+            AND li.date_heure_demande >= CURRENT_DATE - INTERVAL '7 days'
+            GROUP BY l.id_livreur, l.nom, l.prenom
+            HAVING SUM(li.prix_total) > 0
+            ORDER BY revenus_total DESC
+        `);
+
+        // Revenus par livreur - mois
+        const revenus30jours = await db.query(`
+            SELECT 
+                l.id_livreur,
+                l.nom,
+                l.prenom,
+                COUNT(li.id_livraison) as livraisons_total,
+                SUM(li.prix_total) as revenus_total,
+                AVG(li.prix_total) as prix_moyen
+            FROM Livreur l
+            LEFT JOIN Livraison li ON l.id_livreur = li.id_livreur
+            WHERE li.statut = 'livree'
+            AND li.date_heure_demande >= CURRENT_DATE - INTERVAL '30 days'
+            GROUP BY l.id_livreur, l.nom, l.prenom
+            HAVING SUM(li.prix_total) > 0
+            ORDER BY revenus_total DESC
+        `);
+
+        // Totaux globaux livreurs
+        const totauxLivreurs = await db.query(`
+            SELECT 
+                COUNT(DISTINCT l.id_livreur) as livreurs_actifs,
+                COUNT(li.id_livraison) as livraisons_total,
+                SUM(li.prix_total) as revenus_total_global,
+                AVG(li.prix_total) as prix_moyen_global
+            FROM Livreur l
+            JOIN Livraison li ON l.id_livreur = li.id_livreur
+            WHERE li.statut = 'livree'
+            AND li.date_heure_demande >= CURRENT_DATE - INTERVAL '30 days'
+        `);
+
+        res.json({
+            success: true,
+            revenus_livreurs: {
+                semaine: revenus7jours.rows,
+                mois: revenus30jours.rows,
+                totaux: totauxLivreurs.rows[0] || { 
+                    livreurs_actifs: 0, 
+                    livraisons_total: 0, 
+                    revenus_total_global: 0, 
+                    prix_moyen_global: 0 
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Erreur revenus livreurs:', error);
+        res.status(500).json({ error: 'Erreur récupération revenus livreurs' });
+    }
+});
+
+// 📊 REVENUS GLOBAUX - DASHBOARD PRINCIPAL  
+router.get('/revenus/dashboard', authenticateAdmin, async (req, res) => {
+    try {
+        console.log('📊 Récupération revenus dashboard...');
+
+        // Revenus totaux aujourd'hui
+        const revenusJour = await db.query(`
+            SELECT 
+                COALESCE(SUM(c.prix_total), 0) as revenus_courses,
+                COALESCE(COUNT(c.id_course), 0) as courses_count,
+                COALESCE(SUM(l.prix_total), 0) as revenus_livraisons,
+                COALESCE(COUNT(l.id_livraison), 0) as livraisons_count
+            FROM 
+                (SELECT prix_total, id_course FROM Course WHERE statut = 'terminee' AND DATE(date_heure_debut) = CURRENT_DATE) c
+            FULL OUTER JOIN 
+                (SELECT prix_total, id_livraison FROM Livraison WHERE statut = 'livree' AND DATE(date_heure_demande) = CURRENT_DATE) l
+            ON 1=1
+        `);
+
+        // Revenus semaine
+        const revenusSemaine = await db.query(`
+            SELECT 
+                DATE(COALESCE(c.date_heure_debut, l.date_heure_demande)) as date,
+                COALESCE(SUM(c.prix_total), 0) as revenus_courses,
+                COALESCE(COUNT(c.id_course), 0) as courses_count,
+                COALESCE(SUM(l.prix_total), 0) as revenus_livraisons,
+                COALESCE(COUNT(l.id_livraison), 0) as livraisons_count,
+                COALESCE(SUM(c.prix_total), 0) + COALESCE(SUM(l.prix_total), 0) as revenus_total
+            FROM 
+                (SELECT prix_total, id_course, date_heure_debut FROM Course WHERE statut = 'terminee' AND date_heure_debut >= CURRENT_DATE - INTERVAL '7 days') c
+            FULL OUTER JOIN 
+                (SELECT prix_total, id_livraison, date_heure_demande FROM Livraison WHERE statut = 'livree' AND date_heure_demande >= CURRENT_DATE - INTERVAL '7 days') l
+            ON DATE(c.date_heure_debut) = DATE(l.date_heure_demande)
+            GROUP BY DATE(COALESCE(c.date_heure_debut, l.date_heure_demande))
+            ORDER BY date DESC
+        `);
+
+        const result = revenusJour.rows[0];
+        const revenusJourTotal = (parseFloat(result.revenus_courses) || 0) + (parseFloat(result.revenus_livraisons) || 0);
+
+        res.json({
+            success: true,
+            revenus_dashboard: {
+                aujourd_hui: {
+                    revenus_total: revenusJourTotal,
+                    revenus_courses: parseFloat(result.revenus_courses) || 0,
+                    revenus_livraisons: parseFloat(result.revenus_livraisons) || 0,
+                    courses_count: parseInt(result.courses_count) || 0,
+                    livraisons_count: parseInt(result.livraisons_count) || 0
+                },
+                semaine: revenusSemaine.rows
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Erreur revenus dashboard:', error);
+        res.status(500).json({ error: 'Erreur récupération revenus dashboard' });
+    }
+});
+
 module.exports = router;
