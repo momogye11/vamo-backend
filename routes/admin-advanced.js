@@ -141,13 +141,13 @@ router.get('/analytics/dashboard', authenticateAdmin, async (req, res) => {
     }
 });
 
-// 🚗 GESTION AVANCÉE CHAUFFEURS
+// 🚗 GESTION AVANCÉE CHAUFFEURS - DONNÉES COMPLÈTES
 router.get('/chauffeurs/:id/details', authenticateAdmin, async (req, res) => {
     try {
         const { id } = req.params;
         console.log(`🔍 Récupération détails chauffeur ${id}...`);
 
-        // Informations complètes du chauffeur
+        // Informations complètes du chauffeur avec véhicule
         const chauffeur = await db.query(`
             SELECT 
                 c.*,
@@ -156,14 +156,17 @@ router.get('/chauffeurs/:id/details', authenticateAdmin, async (req, res) => {
                 v.annee,
                 v.couleur,
                 v.numero_plaque,
+                v.plaque_immatriculation,
                 COUNT(co.id_course) as total_courses,
-                SUM(co.prix_total) as revenus_total,
-                AVG(co.prix_total) as prix_moyen
+                COUNT(co.id_course) FILTER (WHERE co.statut = 'terminee') as courses_terminees,
+                SUM(CASE WHEN co.statut = 'terminee' THEN co.prix_total ELSE 0 END) as revenus_total,
+                AVG(CASE WHEN co.statut = 'terminee' THEN co.prix_total ELSE NULL END) as prix_moyen,
+                MAX(co.date_heure_debut) as derniere_course
             FROM Chauffeur c
             LEFT JOIN Vehicule v ON c.id_chauffeur = v.id_chauffeur
             LEFT JOIN Course co ON c.id_chauffeur = co.id_chauffeur
             WHERE c.id_chauffeur = $1
-            GROUP BY c.id_chauffeur, v.id_vehicule
+            GROUP BY c.id_chauffeur, v.id_vehicule, v.marque, v.modele, v.annee, v.couleur, v.numero_plaque, v.plaque_immatriculation
         `, [id]);
 
         if (chauffeur.rows.length === 0) {
@@ -214,19 +217,21 @@ router.get('/chauffeurs/:id/details', authenticateAdmin, async (req, res) => {
     }
 });
 
-// 🏍️ GESTION AVANCÉE LIVREURS
+// 🏍️ GESTION AVANCÉE LIVREURS - DONNÉES COMPLÈTES  
 router.get('/livreurs/:id/details', authenticateAdmin, async (req, res) => {
     try {
         const { id } = req.params;
         console.log(`🔍 Récupération détails livreur ${id}...`);
 
-        // Informations complètes du livreur
+        // Informations complètes du livreur avec véhicule
         const livreur = await db.query(`
             SELECT 
                 l.*,
                 COUNT(li.id_livraison) as total_livraisons,
-                SUM(li.prix_total) as revenus_total,
-                AVG(li.prix_total) as prix_moyen
+                COUNT(li.id_livraison) FILTER (WHERE li.statut = 'livree') as livraisons_terminees,
+                SUM(CASE WHEN li.statut = 'livree' THEN li.prix_total ELSE 0 END) as revenus_total,
+                AVG(CASE WHEN li.statut = 'livree' THEN li.prix_total ELSE NULL END) as prix_moyen,
+                MAX(li.date_heure_demande) as derniere_livraison
             FROM Livreur l
             LEFT JOIN Livraison li ON l.id_livreur = li.id_livreur
             WHERE l.id_livreur = $1
@@ -650,6 +655,325 @@ router.get('/revenus/dashboard', authenticateAdmin, async (req, res) => {
     } catch (error) {
         console.error('❌ Erreur revenus dashboard:', error);
         res.status(500).json({ error: 'Erreur récupération revenus dashboard' });
+    }
+});
+
+// 📝 LISTES COMPLÈTES AVEC VRAIES DONNÉES
+router.get('/chauffeurs/liste-complete', authenticateAdmin, async (req, res) => {
+    try {
+        console.log('📝 Récupération liste complète chauffeurs...');
+
+        const chauffeurs = await db.query(`
+            SELECT 
+                c.id_chauffeur,
+                c.nom,
+                c.prenom,
+                c.telephone,
+                c.statut_validation,
+                c.disponibilite,
+                c.marque_vehicule,
+                c.plaque_immatriculation,
+                v.marque as vehicule_marque,
+                v.modele as vehicule_modele,
+                v.annee as vehicule_annee,
+                v.couleur as vehicule_couleur,
+                v.numero_plaque as vehicule_plaque,
+                COUNT(co.id_course) as total_courses,
+                COUNT(co.id_course) FILTER (WHERE co.statut = 'terminee') as courses_terminees,
+                SUM(CASE WHEN co.statut = 'terminee' THEN co.prix_total ELSE 0 END) as revenus_total
+            FROM Chauffeur c
+            LEFT JOIN Vehicule v ON c.id_chauffeur = v.id_chauffeur
+            LEFT JOIN Course co ON c.id_chauffeur = co.id_chauffeur
+            GROUP BY c.id_chauffeur, v.id_vehicule, v.marque, v.modele, v.annee, v.couleur, v.numero_plaque
+            ORDER BY c.nom, c.prenom
+        `);
+
+        res.json({
+            success: true,
+            chauffeurs: chauffeurs.rows
+        });
+
+    } catch (error) {
+        console.error('❌ Erreur liste chauffeurs:', error);
+        res.status(500).json({ error: 'Erreur récupération liste chauffeurs' });
+    }
+});
+
+router.get('/livreurs/liste-complete', authenticateAdmin, async (req, res) => {
+    try {
+        console.log('📝 Récupération liste complète livreurs...');
+
+        const livreurs = await db.query(`
+            SELECT 
+                l.id_livreur,
+                l.nom,
+                l.prenom,
+                l.telephone,
+                l.statut_validation,
+                l.disponibilite,
+                l.marque_vehicule,
+                l.plaque_immatriculation,
+                COUNT(li.id_livraison) as total_livraisons,
+                COUNT(li.id_livraison) FILTER (WHERE li.statut = 'livree') as livraisons_terminees,
+                SUM(CASE WHEN li.statut = 'livree' THEN li.prix_total ELSE 0 END) as revenus_total
+            FROM Livreur l
+            LEFT JOIN Livraison li ON l.id_livreur = li.id_livreur
+            GROUP BY l.id_livreur
+            ORDER BY l.nom, l.prenom
+        `);
+
+        res.json({
+            success: true,
+            livreurs: livreurs.rows
+        });
+
+    } catch (error) {
+        console.error('❌ Erreur liste livreurs:', error);
+        res.status(500).json({ error: 'Erreur récupération liste livreurs' });
+    }
+});
+
+// 📸 GESTION DES PHOTOS ET DOCUMENTS
+router.get('/chauffeurs/:id/photos', authenticateAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        console.log(`📸 Récupération photos chauffeur ${id}...`);
+
+        const result = await db.query(`
+            SELECT 
+                id_chauffeur,
+                nom,
+                prenom,
+                photo_vehicule,
+                photo_cni,
+                photo_selfie,
+                marque_vehicule,
+                plaque_immatriculation
+            FROM Chauffeur 
+            WHERE id_chauffeur = $1
+        `, [id]);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Chauffeur non trouvé' });
+        }
+
+        const chauffeur = result.rows[0];
+        
+        // Organiser les photos avec leurs métadonnées
+        const photos = {
+            selfie: {
+                type: 'selfie',
+                title: 'Photo de profil',
+                description: `Selfie de ${chauffeur.prenom} ${chauffeur.nom}`,
+                data: chauffeur.photo_selfie,
+                icon: '🤳'
+            },
+            cni: {
+                type: 'cni',
+                title: 'Carte d\'identité',
+                description: 'CNI pour vérification d\'identité',
+                data: chauffeur.photo_cni,
+                icon: '🆔'
+            },
+            vehicule: {
+                type: 'vehicule',
+                title: 'Véhicule',
+                description: `${chauffeur.marque_vehicule || 'Véhicule'} - ${chauffeur.plaque_immatriculation || 'Plaque non renseignée'}`,
+                data: chauffeur.photo_vehicule,
+                icon: '🚗'
+            }
+        };
+
+        // Filtrer les photos qui existent
+        const photosDisponibles = Object.entries(photos)
+            .filter(([key, photo]) => photo.data && photo.data.trim() !== '')
+            .reduce((acc, [key, photo]) => {
+                acc[key] = photo;
+                return acc;
+            }, {});
+
+        res.json({
+            success: true,
+            chauffeur: {
+                id: chauffeur.id_chauffeur,
+                nom: chauffeur.nom,
+                prenom: chauffeur.prenom
+            },
+            photos: photosDisponibles,
+            total_photos: Object.keys(photosDisponibles).length
+        });
+
+    } catch (error) {
+        console.error('❌ Erreur récupération photos chauffeur:', error);
+        res.status(500).json({ error: 'Erreur récupération photos chauffeur' });
+    }
+});
+
+router.get('/livreurs/:id/photos', authenticateAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        console.log(`📸 Récupération photos livreur ${id}...`);
+
+        const result = await db.query(`
+            SELECT 
+                id_livreur,
+                nom,
+                prenom,
+                photo_vehicule,
+                photo_cni,
+                photo_selfie,
+                type_vehicule
+            FROM Livreur 
+            WHERE id_livreur = $1
+        `, [id]);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Livreur non trouvé' });
+        }
+
+        const livreur = result.rows[0];
+        
+        // Organiser les photos avec leurs métadonnées
+        const photos = {
+            selfie: {
+                type: 'selfie',
+                title: 'Photo de profil',
+                description: `Selfie de ${livreur.prenom} ${livreur.nom}`,
+                data: livreur.photo_selfie,
+                icon: '🤳'
+            },
+            cni: {
+                type: 'cni',
+                title: 'Carte d\'identité',
+                description: 'CNI pour vérification d\'identité',
+                data: livreur.photo_cni,
+                icon: '🆔'
+            },
+            vehicule: {
+                type: 'vehicule',
+                title: 'Véhicule de livraison',
+                description: `${livreur.type_vehicule || 'Véhicule de livraison'}`,
+                data: livreur.photo_vehicule,
+                icon: livreur.type_vehicule === 'bike' ? '🚲' : '🏍️'
+            }
+        };
+
+        // Filtrer les photos qui existent
+        const photosDisponibles = Object.entries(photos)
+            .filter(([key, photo]) => photo.data && photo.data.trim() !== '')
+            .reduce((acc, [key, photo]) => {
+                acc[key] = photo;
+                return acc;
+            }, {});
+
+        res.json({
+            success: true,
+            livreur: {
+                id: livreur.id_livreur,
+                nom: livreur.nom,
+                prenom: livreur.prenom
+            },
+            photos: photosDisponibles,
+            total_photos: Object.keys(photosDisponibles).length
+        });
+
+    } catch (error) {
+        console.error('❌ Erreur récupération photos livreur:', error);
+        res.status(500).json({ error: 'Erreur récupération photos livreur' });
+    }
+});
+
+// 🔍 ENDPOINT DE DEBUG POUR TROUVER LIVREUR PAR TÉLÉPHONE
+router.get('/debug/livreur/telephone/:telephone', authenticateAdmin, async (req, res) => {
+    try {
+        const { telephone } = req.params;
+        console.log(`🔍 Recherche livreur par téléphone: ${telephone}`);
+
+        const result = await db.query(`
+            SELECT 
+                id_livreur,
+                nom,
+                prenom,
+                telephone,
+                photo_vehicule,
+                photo_cni,
+                photo_selfie,
+                type_vehicule,
+                statut_validation
+            FROM Livreur 
+            WHERE telephone = $1 OR telephone = $2
+        `, [telephone, `+221${telephone}`]);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ 
+                error: 'Livreur non trouvé',
+                telephone_recherche: telephone,
+                variants_testees: [telephone, `+221${telephone}`]
+            });
+        }
+
+        const livreur = result.rows[0];
+        
+        // Analyser les photos
+        const photoAnalysis = {
+            selfie: {
+                exists: !!(livreur.photo_selfie && livreur.photo_selfie.trim()),
+                size: livreur.photo_selfie ? livreur.photo_selfie.length : 0,
+                preview: livreur.photo_selfie ? livreur.photo_selfie.substring(0, 50) + '...' : null
+            },
+            cni: {
+                exists: !!(livreur.photo_cni && livreur.photo_cni.trim()),
+                size: livreur.photo_cni ? livreur.photo_cni.length : 0,
+                preview: livreur.photo_cni ? livreur.photo_cni.substring(0, 50) + '...' : null
+            },
+            vehicule: {
+                exists: !!(livreur.photo_vehicule && livreur.photo_vehicule.trim()),
+                size: livreur.photo_vehicule ? livreur.photo_vehicule.length : 0,
+                preview: livreur.photo_vehicule ? livreur.photo_vehicule.substring(0, 50) + '...' : null
+            }
+        };
+
+        res.json({
+            success: true,
+            livreur: {
+                id: livreur.id_livreur,
+                nom: livreur.nom,
+                prenom: livreur.prenom,
+                telephone: livreur.telephone,
+                type_vehicule: livreur.type_vehicule,
+                statut_validation: livreur.statut_validation
+            },
+            photos_analysis: photoAnalysis,
+            photos_count: Object.values(photoAnalysis).filter(p => p.exists).length
+        });
+
+    } catch (error) {
+        console.error('❌ Erreur debug livreur:', error);
+        res.status(500).json({ error: 'Erreur debug livreur', details: error.message });
+    }
+});
+
+// 🖼️ ENDPOINT POUR VALIDER/REJETER DES PHOTOS
+router.post('/photos/:type/:id/action', authenticateAdmin, async (req, res) => {
+    try {
+        const { type, id } = req.params; // type = 'chauffeur' ou 'livreur'
+        const { photo_type, action, commentaire } = req.body; // photo_type = 'selfie', 'cni', 'vehicule'
+        
+        console.log(`📸 Action ${action} sur photo ${photo_type} de ${type} ${id}`);
+
+        // TODO: Implémenter la validation/rejet de photos spécifiques
+        // Pour l'instant, on retourne juste un succès
+        
+        res.json({
+            success: true,
+            message: `Photo ${photo_type} ${action} avec succès`,
+            action: action,
+            photo_type: photo_type
+        });
+
+    } catch (error) {
+        console.error('❌ Erreur action photo:', error);
+        res.status(500).json({ error: 'Erreur lors de l\'action sur la photo' });
     }
 });
 
