@@ -375,4 +375,263 @@ router.get('/delivery-person/:deliveryPersonId', async (req, res) => {
     }
 });
 
+// Submit a driver-to-client rating
+router.post('/driver-rating', async (req, res) => {
+    const { rating, comment, driverId, clientId, ratingType, tripId, deliveryId } = req.body;
+
+    try {
+        console.log('⭐ Submitting driver-to-client rating:', {
+            rating,
+            driverId,
+            clientId,
+            ratingType,
+            tripId,
+            deliveryId
+        });
+
+        // Validation des champs obligatoires
+        if (!rating || !driverId || !clientId || !ratingType) {
+            return res.status(400).json({
+                success: false,
+                error: 'rating, driverId, clientId et ratingType sont obligatoires'
+            });
+        }
+
+        // Validation de la note (1-5)
+        if (rating < 1 || rating > 5) {
+            return res.status(400).json({
+                success: false,
+                error: 'La note doit être entre 1 et 5'
+            });
+        }
+
+        let result;
+
+        if (ratingType === 'client_by_driver') {
+            // Note d'un client par un chauffeur pour une course
+            if (!tripId) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'tripId est obligatoire pour noter un client lors d\'une course'
+                });
+            }
+
+            // Vérifier que la course existe et appartient au bon chauffeur
+            const tripCheck = await db.query(
+                'SELECT id_course, id_chauffeur, id_client FROM Course WHERE id_course = $1 AND id_chauffeur = $2',
+                [tripId, driverId]
+            );
+
+            if (tripCheck.rowCount === 0) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Course non trouvée ou vous n\'êtes pas le chauffeur de cette course'
+                });
+            }
+
+            // Vérifier que le client correspond
+            if (tripCheck.rows[0].id_client != clientId) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Le client ne correspond pas à cette course'
+                });
+            }
+
+            // Vérifier si une note existe déjà pour cette course (côté chauffeur vers client)
+            const existingRating = await db.query(
+                'SELECT id_note FROM NoteClientParChauffeur WHERE id_course = $1',
+                [tripId]
+            );
+
+            if (existingRating.rowCount > 0) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Vous avez déjà noté ce client pour cette course'
+                });
+            }
+
+            // Créer la table si elle n'existe pas
+            await db.query(`
+                CREATE TABLE IF NOT EXISTS NoteClientParChauffeur (
+                    id_note SERIAL PRIMARY KEY,
+                    id_client INTEGER REFERENCES Client(id_client) ON DELETE SET NULL,
+                    id_chauffeur INTEGER REFERENCES Chauffeur(id_chauffeur) ON DELETE SET NULL,
+                    note INTEGER CHECK (note >= 1 AND note <= 5),
+                    commentaire TEXT,
+                    date_note TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    id_course INTEGER UNIQUE REFERENCES Course(id_course) ON DELETE SET NULL
+                )
+            `);
+
+            // Insérer la note du chauffeur vers le client
+            result = await db.query(
+                `INSERT INTO NoteClientParChauffeur (id_client, id_chauffeur, note, commentaire, id_course) 
+                 VALUES ($1, $2, $3, $4, $5) 
+                 RETURNING id_note, date_note`,
+                [clientId, driverId, rating, comment, tripId]
+            );
+
+        } else if (ratingType === 'client_by_delivery_person') {
+            // Note d'un client par un livreur pour une livraison
+            if (!deliveryId) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'deliveryId est obligatoire pour noter un client lors d\'une livraison'
+                });
+            }
+
+            // Vérifier que la livraison existe et appartient au bon livreur
+            const deliveryCheck = await db.query(
+                'SELECT id_livraison, id_livreur, id_client FROM Livraison WHERE id_livraison = $1 AND id_livreur = $2',
+                [deliveryId, driverId] // driverId est en fait le livreur ID dans ce cas
+            );
+
+            if (deliveryCheck.rowCount === 0) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Livraison non trouvée ou vous n\'êtes pas le livreur de cette livraison'
+                });
+            }
+
+            // Vérifier que le client correspond
+            if (deliveryCheck.rows[0].id_client != clientId) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Le client ne correspond pas à cette livraison'
+                });
+            }
+
+            // Vérifier si une note existe déjà pour cette livraison (côté livreur vers client)
+            const existingRating = await db.query(
+                'SELECT id_note FROM NoteClientParLivreur WHERE id_livraison = $1',
+                [deliveryId]
+            );
+
+            if (existingRating.rowCount > 0) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Vous avez déjà noté ce client pour cette livraison'
+                });
+            }
+
+            // Créer la table si elle n'existe pas
+            await db.query(`
+                CREATE TABLE IF NOT EXISTS NoteClientParLivreur (
+                    id_note SERIAL PRIMARY KEY,
+                    id_client INTEGER REFERENCES Client(id_client) ON DELETE SET NULL,
+                    id_livreur INTEGER REFERENCES Livreur(id_livreur) ON DELETE SET NULL,
+                    note INTEGER CHECK (note >= 1 AND note <= 5),
+                    commentaire TEXT,
+                    date_note TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    id_livraison INTEGER UNIQUE REFERENCES Livraison(id_livraison) ON DELETE SET NULL
+                )
+            `);
+
+            // Insérer la note du livreur vers le client
+            result = await db.query(
+                `INSERT INTO NoteClientParLivreur (id_client, id_livreur, note, commentaire, id_livraison) 
+                 VALUES ($1, $2, $3, $4, $5) 
+                 RETURNING id_note, date_note`,
+                [clientId, driverId, rating, comment, deliveryId] // driverId est en fait le livreur ID
+            );
+
+        } else {
+            return res.status(400).json({
+                success: false,
+                error: 'Type de notation invalide'
+            });
+        }
+
+        console.log('✅ Driver-to-client rating saved successfully:', result.rows[0]);
+
+        res.json({
+            success: true,
+            message: 'Note du chauffeur/livreur enregistrée avec succès',
+            data: {
+                id_note: result.rows[0].id_note,
+                date_note: result.rows[0].date_note,
+                rating: rating,
+                ratingType: ratingType
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Error saving driver-to-client rating:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Erreur serveur lors de l\'enregistrement de la note'
+        });
+    }
+});
+
+// Get client ratings by drivers/delivery persons
+router.get('/client/:clientId/ratings-received', async (req, res) => {
+    const { clientId } = req.params;
+
+    try {
+        // Ratings from drivers (chauffeurs)
+        const driverRatings = await db.query(`
+            SELECT 
+                nc.note,
+                nc.commentaire,
+                nc.date_note,
+                nc.id_course,
+                c.nom as chauffeur_nom,
+                c.prenom as chauffeur_prenom,
+                'chauffeur' as rated_by_type
+            FROM NoteClientParChauffeur nc
+            JOIN Chauffeur c ON nc.id_chauffeur = c.id_chauffeur
+            WHERE nc.id_client = $1
+            ORDER BY nc.date_note DESC
+        `, [clientId]);
+
+        // Ratings from delivery persons (livreurs)
+        const deliveryPersonRatings = await db.query(`
+            SELECT 
+                nl.note,
+                nl.commentaire,
+                nl.date_note,
+                nl.id_livraison,
+                l.nom as livreur_nom,
+                l.prenom as livreur_prenom,
+                'livreur' as rated_by_type
+            FROM NoteClientParLivreur nl
+            JOIN Livreur l ON nl.id_livreur = l.id_livreur
+            WHERE nl.id_client = $1
+            ORDER BY nl.date_note DESC
+        `, [clientId]);
+
+        // Combine all ratings
+        const allRatings = [
+            ...driverRatings.rows,
+            ...deliveryPersonRatings.rows
+        ].sort((a, b) => new Date(b.date_note) - new Date(a.date_note));
+
+        // Calculate average rating
+        const totalRatings = allRatings.length;
+        const averageRating = totalRatings > 0 
+            ? allRatings.reduce((sum, rating) => sum + rating.note, 0) / totalRatings 
+            : 0;
+
+        res.json({
+            success: true,
+            data: {
+                ratings: allRatings,
+                statistics: {
+                    total_ratings: totalRatings,
+                    average_rating: Math.round(averageRating * 10) / 10,
+                    rating_display: totalRatings > 0 ? `${Math.round(averageRating * 10) / 10}/5` : 'N/A'
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Error fetching client ratings:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Erreur serveur lors de la récupération des notes'
+        });
+    }
+});
+
 module.exports = router;
