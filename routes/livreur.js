@@ -578,4 +578,63 @@ router.post('/availability', async (req, res) => {
     }
 });
 
+// Get delivery driver daily metrics (earnings, hours, deliveries)
+router.get('/:id/daily-metrics', async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        // Today's completed deliveries and earnings
+        const todayStats = await db.query(`
+            SELECT 
+                COUNT(*) as completed_orders,
+                COALESCE(SUM(prix), 0) as total_earnings
+            FROM Livraison 
+            WHERE id_livreur = $1 
+            AND etat_livraison = 'livree' 
+            AND DATE(date_heure_arrivee) = CURRENT_DATE
+        `, [id]);
+
+        // Calculate hours active today by checking delivery durations
+        const hoursActive = await db.query(`
+            SELECT 
+                COALESCE(
+                    SUM(
+                        EXTRACT(EPOCH FROM (date_heure_arrivee - date_heure_depart)) / 3600
+                    ), 0
+                ) as hours_active
+            FROM Livraison 
+            WHERE id_livreur = $1 
+            AND date_heure_depart IS NOT NULL 
+            AND date_heure_arrivee IS NOT NULL
+            AND DATE(date_heure_depart) = CURRENT_DATE
+        `, [id]);
+
+        const stats = todayStats.rows[0];
+        const activeHours = parseFloat(hoursActive.rows[0].hours_active) || 0;
+
+        console.log(`📊 Daily metrics for livreur ${id}:`, {
+            completed_orders: stats.completed_orders,
+            total_earnings: stats.total_earnings,
+            hours_active: activeHours
+        });
+
+        res.json({
+            success: true,
+            data: {
+                completed_orders: parseInt(stats.completed_orders) || 0,
+                total_earnings: parseFloat(stats.total_earnings) || 0,
+                hours_active: Math.round(activeHours * 10) / 10, // Round to 1 decimal
+                date: new Date().toISOString().split('T')[0] // Today's date
+            }
+        });
+
+    } catch (err) {
+        console.error("❌ Erreur récupération métriques quotidiennes livreur:", err);
+        res.status(500).json({
+            success: false,
+            error: 'Erreur serveur'
+        });
+    }
+});
+
 module.exports = router;

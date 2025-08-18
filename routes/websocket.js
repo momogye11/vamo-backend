@@ -147,6 +147,22 @@ function handleWebSocketMessage(ws, message) {
             handleDeliveryDriverDisconnect(ws, message);
             break;
 
+        case 'driver-location-update':
+            handleDriverLocationUpdate(ws, message);
+            break;
+
+        case 'delivery-driver-location-update':
+            handleDeliveryDriverLocationUpdate(ws, message);
+            break;
+
+        case 'start-following-driver':
+            handleStartFollowingDriver(ws, message);
+            break;
+
+        case 'stop-following-driver':
+            handleStopFollowingDriver(ws, message);
+            break;
+
         default:
             console.log(`⚠️ Unknown message type: ${message.type}`);
             ws.send(JSON.stringify({
@@ -559,6 +575,294 @@ async function notifyDriver(driverId, type, data) {
     }
 }
 
+// 📍 NOUVELLES FONCTIONS - Gestion des mises à jour de position GPS temps réel
+
+// Gestion des mises à jour de position des chauffeurs (ride-sharing)
+function handleDriverLocationUpdate(ws, message) {
+    const { driverId, latitude, longitude, heading, speed, accuracy } = message.data || {};
+    
+    if (!driverId || !latitude || !longitude) {
+        console.error('❌ Invalid location update data:', message.data);
+        ws.send(JSON.stringify({
+            type: 'error',
+            message: 'driverId, latitude, and longitude are required'
+        }));
+        return;
+    }
+
+    // Vérifier que le chauffeur est connecté
+    const driverData = connectedDrivers.get(driverId.toString());
+    if (!driverData) {
+        console.log(`⚠️ Location update from non-connected driver: ${driverId}`);
+        return;
+    }
+
+    console.log(`📍 Driver ${driverId} location update:`, { latitude, longitude, heading, speed });
+
+    // Mettre à jour les données de position du chauffeur
+    driverData.lastLocation = {
+        latitude,
+        longitude,
+        heading: heading || null,
+        speed: speed || null,
+        accuracy: accuracy || null,
+        timestamp: new Date().toISOString()
+    };
+    driverData.lastPing = new Date();
+
+    // 📡 Trouver et notifier les clients qui suivent ce chauffeur
+    notifyClientsFollowingDriver(driverId, driverData.lastLocation);
+
+    // Confirmer la réception
+    ws.send(JSON.stringify({
+        type: 'location-update-received',
+        data: {
+            driverId,
+            timestamp: new Date().toISOString()
+        }
+    }));
+}
+
+// Gestion des mises à jour de position des livreurs (delivery)
+function handleDeliveryDriverLocationUpdate(ws, message) {
+    const { driverId, latitude, longitude, heading, speed, accuracy } = message.data || {};
+    
+    if (!driverId || !latitude || !longitude) {
+        console.error('❌ Invalid delivery driver location update data:', message.data);
+        ws.send(JSON.stringify({
+            type: 'error',
+            message: 'driverId, latitude, and longitude are required'
+        }));
+        return;
+    }
+
+    // Vérifier que le livreur est connecté
+    const driverData = connectedDeliveryDrivers.get(driverId.toString());
+    if (!driverData) {
+        console.log(`⚠️ Location update from non-connected delivery driver: ${driverId}`);
+        return;
+    }
+
+    console.log(`📍 Delivery driver ${driverId} location update:`, { latitude, longitude, heading, speed });
+
+    // Mettre à jour les données de position du livreur
+    driverData.lastLocation = {
+        latitude,
+        longitude,
+        heading: heading || null,
+        speed: speed || null,
+        accuracy: accuracy || null,
+        timestamp: new Date().toISOString()
+    };
+    driverData.lastPing = new Date();
+
+    // 📡 Trouver et notifier les clients qui suivent ce livreur
+    notifyClientsFollowingDeliveryDriver(driverId, driverData.lastLocation);
+
+    // Confirmer la réception
+    ws.send(JSON.stringify({
+        type: 'delivery-location-update-received',
+        data: {
+            driverId,
+            timestamp: new Date().toISOString()
+        }
+    }));
+}
+
+// Fonction pour notifier les clients qui suivent un chauffeur spécifique
+function notifyClientsFollowingDriver(driverId, location) {
+    console.log(`📡 Looking for clients following driver ${driverId}`);
+    
+    let notifiedClients = 0;
+    
+    // Parcourir tous les clients connectés
+    for (const [clientId, clientData] of connectedClients.entries()) {
+        // Vérifier si ce client suit ce chauffeur (vous devrez adapter cette logique selon votre système)
+        if (clientData.followingDriverId === driverId) {
+            try {
+                if (clientData.ws.readyState === WebSocket.OPEN) {
+                    clientData.ws.send(JSON.stringify({
+                        type: 'driver-location-update',
+                        data: {
+                            driverId,
+                            location,
+                            timestamp: new Date().toISOString()
+                        }
+                    }));
+                    notifiedClients++;
+                    console.log(`✅ Location sent to client ${clientId}`);
+                } else {
+                    console.log(`⚠️ Client ${clientId} connection not open`);
+                    connectedClients.delete(clientId);
+                }
+            } catch (error) {
+                console.error(`❌ Error sending location to client ${clientId}:`, error);
+                connectedClients.delete(clientId);
+            }
+        }
+    }
+    
+    console.log(`📊 Driver location sent to ${notifiedClients} clients`);
+}
+
+// Fonction pour notifier les clients qui suivent un livreur spécifique
+function notifyClientsFollowingDeliveryDriver(driverId, location) {
+    console.log(`📡 Looking for clients following delivery driver ${driverId}`);
+    
+    let notifiedClients = 0;
+    
+    // Parcourir tous les clients connectés
+    for (const [clientId, clientData] of connectedClients.entries()) {
+        // Vérifier si ce client suit ce livreur
+        if (clientData.followingDeliveryDriverId === driverId) {
+            try {
+                if (clientData.ws.readyState === WebSocket.OPEN) {
+                    clientData.ws.send(JSON.stringify({
+                        type: 'delivery-driver-location-update',
+                        data: {
+                            driverId,
+                            location,
+                            timestamp: new Date().toISOString()
+                        }
+                    }));
+                    notifiedClients++;
+                    console.log(`✅ Delivery location sent to client ${clientId}`);
+                } else {
+                    console.log(`⚠️ Client ${clientId} connection not open`);
+                    connectedClients.delete(clientId);
+                }
+            } catch (error) {
+                console.error(`❌ Error sending delivery location to client ${clientId}:`, error);
+                connectedClients.delete(clientId);
+            }
+        }
+    }
+    
+    console.log(`📊 Delivery driver location sent to ${notifiedClients} clients`);
+}
+
+// Fonction pour qu'un client commence à suivre un chauffeur
+function setClientFollowingDriver(clientId, driverId, isDelivery = false) {
+    const clientData = connectedClients.get(clientId.toString());
+    
+    if (clientData) {
+        if (isDelivery) {
+            clientData.followingDeliveryDriverId = driverId.toString();
+            console.log(`👤 Client ${clientId} now following delivery driver ${driverId}`);
+        } else {
+            clientData.followingDriverId = driverId.toString();
+            console.log(`👤 Client ${clientId} now following driver ${driverId}`);
+        }
+        return true;
+    }
+    
+    console.log(`⚠️ Cannot set following - client ${clientId} not connected`);
+    return false;
+}
+
+// Fonction pour arrêter le suivi
+function stopClientFollowing(clientId) {
+    const clientData = connectedClients.get(clientId.toString());
+    
+    if (clientData) {
+        clientData.followingDriverId = null;
+        clientData.followingDeliveryDriverId = null;
+        console.log(`👤 Client ${clientId} stopped following drivers`);
+        return true;
+    }
+    
+    return false;
+}
+
+// Gestion du message "start-following-driver" du client
+function handleStartFollowingDriver(ws, message) {
+    const { clientId, driverId, isDelivery } = message.data || {};
+    
+    if (!clientId || !driverId) {
+        console.error('❌ Invalid start following data:', message.data);
+        ws.send(JSON.stringify({
+            type: 'error',
+            message: 'clientId and driverId are required'
+        }));
+        return;
+    }
+
+    // Démarrer le suivi
+    const success = setClientFollowingDriver(clientId, driverId, isDelivery);
+    
+    if (success) {
+        console.log(`✅ Client ${clientId} now following ${isDelivery ? 'delivery ' : ''}driver ${driverId}`);
+        
+        // Confirmer au client
+        ws.send(JSON.stringify({
+            type: 'following-started',
+            data: {
+                driverId,
+                isDelivery,
+                timestamp: new Date().toISOString()
+            }
+        }));
+
+        // Envoyer immédiatement la dernière position connue si disponible
+        const driverData = isDelivery ? 
+            connectedDeliveryDrivers.get(driverId.toString()) : 
+            connectedDrivers.get(driverId.toString());
+        
+        if (driverData && driverData.lastLocation) {
+            console.log(`📍 Sending last known location to client ${clientId}`);
+            ws.send(JSON.stringify({
+                type: isDelivery ? 'delivery-driver-location-update' : 'driver-location-update',
+                data: {
+                    driverId,
+                    location: driverData.lastLocation,
+                    timestamp: new Date().toISOString()
+                }
+            }));
+        }
+    } else {
+        console.error(`❌ Failed to start following for client ${clientId}`);
+        ws.send(JSON.stringify({
+            type: 'error',
+            message: 'Failed to start following driver'
+        }));
+    }
+}
+
+// Gestion du message "stop-following-driver" du client
+function handleStopFollowingDriver(ws, message) {
+    const { clientId } = message.data || {};
+    
+    if (!clientId) {
+        console.error('❌ Invalid stop following data:', message.data);
+        ws.send(JSON.stringify({
+            type: 'error',
+            message: 'clientId is required'
+        }));
+        return;
+    }
+
+    // Arrêter le suivi
+    const success = stopClientFollowing(clientId);
+    
+    if (success) {
+        console.log(`✅ Client ${clientId} stopped following drivers`);
+        
+        // Confirmer au client
+        ws.send(JSON.stringify({
+            type: 'following-stopped',
+            data: {
+                timestamp: new Date().toISOString()
+            }
+        }));
+    } else {
+        console.error(`❌ Failed to stop following for client ${clientId}`);
+        ws.send(JSON.stringify({
+            type: 'error',
+            message: 'Failed to stop following driver'
+        }));
+    }
+}
+
 // Route de debug pour voir les connexions
 router.get('/debug/connections', (req, res) => {
     const connections = [];
@@ -620,6 +924,9 @@ module.exports = {
     notifyDriver,
     getWebSocketConnections,
     notifyTripTaken,
+    // 📍 Nouvelles fonctions pour le GPS temps réel
+    setClientFollowingDriver,
+    stopClientFollowing,
     getConnectedDriversCount: () => connectedDrivers.size,
     getConnectionStatus: () => {
         const connections = [];
