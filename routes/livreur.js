@@ -583,18 +583,18 @@ router.get('/:id/daily-metrics', async (req, res) => {
     const { id } = req.params;
 
     try {
-        // Today's completed deliveries and earnings
+        // Today's completed deliveries and earnings (check both 'livree' and 'terminee' statuses)
         const todayStats = await db.query(`
             SELECT 
                 COUNT(*) as completed_orders,
                 COALESCE(SUM(prix), 0) as total_earnings
             FROM Livraison 
             WHERE id_livreur = $1 
-            AND etat_livraison = 'livree' 
+            AND (etat_livraison = 'livree' OR etat_livraison = 'terminee')
             AND DATE(date_heure_arrivee) = CURRENT_DATE
         `, [id]);
 
-        // Calculate hours active today by checking delivery durations
+        // Calculate hours active today by checking delivery durations (all deliveries with both timestamps)
         const hoursActive = await db.query(`
             SELECT 
                 COALESCE(
@@ -606,6 +606,7 @@ router.get('/:id/daily-metrics', async (req, res) => {
             WHERE id_livreur = $1 
             AND date_heure_depart IS NOT NULL 
             AND date_heure_arrivee IS NOT NULL
+            AND (etat_livraison = 'livree' OR etat_livraison = 'terminee')
             AND DATE(date_heure_depart) = CURRENT_DATE
         `, [id]);
 
