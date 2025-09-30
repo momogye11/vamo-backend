@@ -1,0 +1,222 @@
+require('dotenv').config();
+const express = require('express');
+const router = express.Router();
+const http = require('http');
+
+// Store active driver connections for real-time notifications
+const activeDrivers = new Map();
+
+/**
+ * WebSocket alternative using long-polling for React Native
+ * Cette approche fonctionne parfaitement sur React Native sans dépendances externes
+ */
+
+// Debug endpoint to check connection status
+router.get('/debug/connections', (req, res) => {
+    const status = getConnectionStatus();
+    console.log('📊 Connection Status Debug:', status);
+    res.json(status);
+});
+
+// Long-polling endpoint for drivers to listen for new trips
+router.get('/driver/:driverId/poll', async (req, res) => {
+    const { driverId } = req.params;
+    const timeout = parseInt(req.query.timeout) || 30000; // 30s timeout
+    
+    console.log(`🎧 Driver ${driverId} connected for long-polling`);
+    
+    // Set headers for long-polling
+    res.writeHead(200, {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'Access-Control-Allow-Origin': '*'
+    });
+    
+    // Store the response for this driver
+    activeDrivers.set(driverId, {
+        response: res,
+        timestamp: Date.now(),
+        timeout: setTimeout(() => {
+            // Send timeout response
+            if (activeDrivers.has(driverId)) {
+                res.end(JSON.stringify({
+                    type: 'timeout',
+                    message: 'No new trips',
+                    timestamp: new Date().toISOString()
+                }));
+                activeDrivers.delete(driverId);
+            }
+        }, timeout)
+    });
+    
+    // Handle client disconnect
+    req.on('close', () => {
+        console.log(`🔌 Driver ${driverId} disconnected from long-polling`);
+        const driverData = activeDrivers.get(driverId);
+        if (driverData) {
+            clearTimeout(driverData.timeout);
+            activeDrivers.delete(driverId);
+        }
+    });
+});
+
+// Function to notify drivers of new trips via long-polling
+function notifyDriversOfNewTrip(tripData) {
+    console.log(`📢 Broadcasting new trip to ${activeDrivers.size} active drivers via long-polling`);
+    
+    const notification = {
+        type: 'new_trip',
+        trip: tripData,
+        timestamp: new Date().toISOString()
+    };
+    
+    // Send to all connected drivers
+    for (const [driverId, driverData] of activeDrivers.entries()) {
+        try {
+            driverData.response.end(JSON.stringify(notification));
+            clearTimeout(driverData.timeout);
+            activeDrivers.delete(driverId);
+            console.log(`✅ Long-polling notification sent to driver ${driverId}`);
+        } catch (error) {
+            console.error(`❌ Failed to send long-polling notification to driver ${driverId}:`, error.message);
+            activeDrivers.delete(driverId);
+        }
+    }
+}
+
+// Get active driver count
+function getActiveDriverCount() {
+    return activeDrivers.size;
+}
+
+// Get detailed connection status for debugging
+function getConnectionStatus() {
+    const connections = [];
+    for (const [driverId, data] of activeDrivers.entries()) {
+        connections.push({
+            driverId,
+            connected: !data.response.destroyed && !data.response.finished,
+            timestamp: data.timestamp,
+            age: Date.now() - data.timestamp
+        });
+    }
+    return {
+        totalConnections: activeDrivers.size,
+        connections
+    };
+}
+
+// Cleanup old connections every 5 minutes
+setInterval(() => {
+    const now = Date.now();
+    const maxAge = 5 * 60 * 1000; // 5 minutes
+    
+    for (const [driverId, driverData] of activeDrivers.entries()) {
+        if (now - driverData.timestamp > maxAge) {
+            console.log(`🧹 Cleaning up old connection for driver ${driverId}`);
+            try {
+                driverData.response.end(JSON.stringify({
+                    type: 'cleanup',
+                    message: 'Connection cleaned up'
+                }));
+            } catch (error) {
+                // Ignore errors on cleanup
+            }
+            clearTimeout(driverData.timeout);
+            activeDrivers.delete(driverId);
+        }
+    }
+}, 5 * 60 * 1000);
+
+// Function to notify a SPECIFIC driver of a new trip (NOUVEAU)
+function notifySpecificDriver(driverId, tripData) {
+    console.log(`📢 Notifying SPECIFIC driver ${driverId} of trip via long-polling:`, tripData.id);
+    
+    const notification = {
+        type: 'new_trip',
+        trip: tripData,
+        timestamp: new Date().toISOString(),
+        targetDriver: driverId
+    };
+    
+    const driverData = activeDrivers.get(driverId.toString());
+    if (driverData && driverData.response) {
+        try {
+            // Vérifier si la connexion est encore valide
+            if (!driverData.response.destroyed && !driverData.response.finished) {
+                driverData.response.end(JSON.stringify(notification));
+                clearTimeout(driverData.timeout);
+                activeDrivers.delete(driverId.toString());
+                console.log(`✅ Long-polling notification sent to SPECIFIC driver ${driverId}`);
+                return true;
+            } else {
+                console.log(`🔌 Connection déjà fermée pour driver ${driverId}`);
+                activeDrivers.delete(driverId.toString());
+                return false;
+            }
+        } catch (error) {
+            console.error(`❌ Error sending to driver ${driverId}:`, error);
+            activeDrivers.delete(driverId.toString());
+            return false;
+        }
+    } else {
+        console.log(`⚠️ Driver ${driverId} not connected to long-polling (${activeDrivers.size} drivers connected)`);
+        return false;
+    }
+}
+
+// 🚀 NOUVELLE FONCTION - Broadcast à tous les chauffeurs disponibles (Flux Simplifié)
+async function notifyAllDrivers(availableDriversList, rideNotification) {
+    console.log(`📡 Broadcasting to ${availableDriversList.length} available drivers and ${activeDrivers.size} connected drivers`);
+    
+    let notifiedCount = 0;
+    
+    // Parcourir tous les chauffeurs disponibles en base
+    for (const driver of availableDriversList) {
+        const driverId = driver.id_chauffeur.toString();
+        
+        // Vérifier si ce chauffeur est connecté via long-polling
+        const driverData = activeDrivers.get(driverId);
+        if (driverData && driverData.response) {
+            try {
+                // Vérifier si la connexion est encore valide
+                if (!driverData.response.destroyed && !driverData.response.finished) {
+                    const notification = {
+                        type: 'new_ride',
+                        data: rideNotification.data,
+                        timestamp: new Date().toISOString(),
+                        driverName: `${driver.prenom} ${driver.nom}`
+                    };
+                    
+                    driverData.response.end(JSON.stringify(notification));
+                    clearTimeout(driverData.timeout);
+                    activeDrivers.delete(driverId);
+                    
+                    console.log(`✅ Broadcast sent to driver ${driver.prenom} ${driver.nom} (ID: ${driverId})`);
+                    notifiedCount++;
+                } else {
+                    console.log(`🔌 Connection fermée pour ${driver.prenom} ${driver.nom} (ID: ${driverId})`);
+                    activeDrivers.delete(driverId);
+                }
+            } catch (error) {
+                console.error(`❌ Error broadcasting to driver ${driverId}:`, error.message);
+                activeDrivers.delete(driverId);
+            }
+        } else {
+            console.log(`⚠️ Driver ${driver.prenom} ${driver.nom} (ID: ${driverId}) not connected via long-polling`);
+        }
+    }
+    
+    console.log(`📊 Broadcast completed: ${notifiedCount}/${availableDriversList.length} drivers notified successfully`);
+    return notifiedCount;
+}
+
+module.exports = {
+    router,
+    notifyDriversOfNewTrip,
+    notifySpecificDriver,
+    notifyAllDrivers, // 🚀 NOUVELLE FONCTION AJOUTÉE
+    getActiveDriverCount,
+    getConnectionStatus
+};

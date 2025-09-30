@@ -1,0 +1,67 @@
+{
+  "name": "vamo-backend",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:integration": "jest --testPathPattern=tests/integration"
+  },
+  "keywords": ["ride-sharing", "delivery", "api", "nodejs"],
+  "author": "Vamo Team",
+  "license": "ISC", 
+  "description": "Vamo backend with Cloudinary support",
+  "dependencies": {
+    "africastalking": "^0.7.3",
+    "axios": "^1.10.0",
+    "bcryptjs": "^2.4.3",
+    "cloudinary": "^2.7.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "express": "^5.1.0",
+    "express-rate-limit": "^7.1.5",
+    "express-validator": "^7.0.1",
+    "helmet": "^7.1.0",
+    "joi": "^17.11.0",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
+    "multer": "^2.0.2",
+    "pg": "^8.16.2",
+    "twilio": "^5.7.1",
+    "winston": "^3.11.0",
+    "ws": "^8.18.3",
+    "expo-server-sdk": "^3.6.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "supertest": "^6.3.3",
+    "nodemon": "^2.0.20",
+    "@types/jest": "^29.5.8"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": [
+      "**/tests/**/*.test.js",
+      "**/__tests__/**/*.js"
+    ],
+    "collectCoverageFrom": [
+      "routes/**/*.js",
+      "services/**/*.js",
+      "utils/**/*.js",
+      "!node_modules/**",
+      "!tests/**"
+    ],
+    "coverageThreshold": {
+      "global": {
+        "branches": 70,
+        "functions": 80,
+        "lines": 80,
+        "statements": 80
+      }
+    },
+    "setupFilesAfterEnv": ["<rootDir>/tests/setup.js"]
+  }
+}
