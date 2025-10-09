@@ -171,6 +171,23 @@ router.post('/accept', async (req, res) => {
         const trip = updateResult.rows[0];
         console.log(`✅ Trip ${tripId} accepted successfully`);
 
+        // 🚀 Récupérer les arrêts intermédiaires
+        const stopsResult = await db.query(`
+            SELECT adresse, latitude, longitude, ordre_arret
+            FROM arrets_intermediaires
+            WHERE id_course = $1
+            ORDER BY ordre_arret ASC
+        `, [tripId]);
+
+        const intermediateStops = stopsResult.rows.map(stop => ({
+            description: stop.adresse,
+            address: stop.adresse,
+            latitude: parseFloat(stop.latitude),
+            longitude: parseFloat(stop.longitude)
+        }));
+
+        console.log(`📍 Found ${intermediateStops.length} intermediate stops for trip ${tripId}`);
+
         // 🚀 Récupérer les informations complètes du chauffeur
         const driverInfo = await db.query(`
             SELECT 
@@ -231,6 +248,7 @@ router.post('/accept', async (req, res) => {
                 type: 'ride',
                 pickup: trip.adresse_depart,
                 destination: trip.adresse_arrivee,
+                intermediateStops: intermediateStops,
                 distance: `${trip.distance_km} km`,
                 duration: `${trip.duree_min} min`,
                 price: trip.prix,

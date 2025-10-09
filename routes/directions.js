@@ -87,7 +87,7 @@ function calculateYangoDeliveryPrice(serviceType, distanceKm, zone) {
 const calculateRoute = async (req, res) => {
     try {
         // Handle both GET (query params) and POST (body) requests
-        const { origin, destination, mode = 'driving' } = req.method === 'GET' ? req.query : req.body;
+        const { origin, destination, waypoints, mode = 'driving' } = req.method === 'GET' ? req.query : req.body;
         
         // Validate required parameters
         if (!origin || !destination) {
@@ -192,6 +192,21 @@ const calculateRoute = async (req, res) => {
             avoid: 'tolls' // Avoid tolls for better experience in Senegal
         };
 
+        // Add waypoints if provided (format: lat1,lng1|lat2,lng2|...)
+        if (waypoints && Array.isArray(waypoints) && waypoints.length > 0) {
+            // Convert waypoints array to Google API format: "lat1,lng1|lat2,lng2"
+            const waypointsString = waypoints
+                .map(wp => `${wp.latitude},${wp.longitude}`)
+                .join('|');
+            params.waypoints = `optimize:false|${waypointsString}`;
+            console.log('🛣️ Route with waypoints:', {
+                origin,
+                waypoints: waypointsString,
+                destination,
+                count: waypoints.length
+            });
+        }
+
         console.log('🗺️ Calculating precise route:', { 
             origin: `${originLat},${originLng}`, 
             destination: `${destLat},${destLng}`, 
@@ -219,14 +234,22 @@ const calculateRoute = async (req, res) => {
         }
 
         // Extract route information
-        const leg = route.legs[0];
+        // Note: With waypoints, there will be multiple legs (one for each segment)
+        const legs = route.legs;
         const polylinePoints = route.overview_polyline.points;
 
         // Decode polyline for frontend use (optional - can be done on frontend too)
         const coordinates = decodePolyline(polylinePoints);
 
-        // Calculate estimated fare based on distance and zone (new pricing based on Yango)
-        const distanceKm = leg.distance.value / 1000;
+        // Calculate total distance and duration from all legs
+        let totalDistance = 0;
+        let totalDuration = 0;
+        legs.forEach(leg => {
+            totalDistance += leg.distance.value;
+            totalDuration += leg.duration.value;
+        });
+
+        const distanceKm = totalDistance / 1000;
         
         // Determine zone (simplified - can be enhanced with GPS coordinates)
         const isSuburb = distanceKm > 10; // Simple logic: >10km = suburb
@@ -296,23 +319,41 @@ const calculateRoute = async (req, res) => {
                 coordinates: coordinates,
                 bounds: route.bounds,
                 
-                // Distance and time
+                // Distance and time (totals for all legs)
                 distance: {
-                    text: leg.distance.text,
-                    value: leg.distance.value, // in meters
+                    text: `${Math.round(distanceKm * 10) / 10} km`,
+                    value: totalDistance, // in meters
                     km: Math.round(distanceKm * 10) / 10 // rounded to 1 decimal
                 },
                 duration: {
-                    text: leg.duration.text,
-                    value: leg.duration.value, // in seconds
-                    minutes: Math.ceil(leg.duration.value / 60)
+                    text: `${Math.ceil(totalDuration / 60)} min`,
+                    value: totalDuration, // in seconds
+                    minutes: Math.ceil(totalDuration / 60)
                 },
-                
-                // Location details
-                start_location: leg.start_location,
-                end_location: leg.end_location,
-                start_address: leg.start_address,
-                end_address: leg.end_address,
+
+                // Location details (first and last leg)
+                start_location: legs[0].start_location,
+                end_location: legs[legs.length - 1].end_location,
+                start_address: legs[0].start_address,
+                end_address: legs[legs.length - 1].end_address,
+
+                // Waypoints details (intermediate stops)
+                waypoints_info: waypoints && waypoints.length > 0 ? waypoints.map((wp, index) => ({
+                    order: index + 1,
+                    address: wp.address || wp.description || `Arrêt ${index + 1}`,
+                    latitude: wp.latitude,
+                    longitude: wp.longitude,
+                    leg_distance: legs[index] ? {
+                        text: legs[index].distance.text,
+                        value: legs[index].distance.value,
+                        km: Math.round((legs[index].distance.value / 1000) * 10) / 10
+                    } : null,
+                    leg_duration: legs[index] ? {
+                        text: legs[index].duration.text,
+                        value: legs[index].duration.value,
+                        minutes: Math.ceil(legs[index].duration.value / 60)
+                    } : null
+                })) : [],
                 
                 // Pricing détaillé avec comparaison Yango
                 pricing: {

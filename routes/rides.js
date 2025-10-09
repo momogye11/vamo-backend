@@ -23,6 +23,7 @@ router.post('/search', async (req, res) => {
     const {
         origin,
         destination,
+        intermediateStops = [],
         vehicleType,
         paymentMethod,
         estimatedFare,
@@ -36,6 +37,7 @@ router.post('/search', async (req, res) => {
         console.log('🔍 Starting ride search with full data:');
         console.log('  Origin:', JSON.stringify(origin, null, 2));
         console.log('  Destination:', JSON.stringify(destination, null, 2));
+        console.log('  Intermediate Stops:', intermediateStops.length);
         console.log('  Vehicle Type:', vehicleType);
         console.log('  Payment Method:', paymentMethod);
         console.log('  Estimated Fare:', estimatedFare);
@@ -134,19 +136,46 @@ router.post('/search', async (req, res) => {
         
         const courseId = courseResult.rows[0].id_course;
         const searchId = `search_${courseId}_${Date.now()}`;
-        
+
+        // Sauvegarder les arrêts intermédiaires si présents
+        if (intermediateStops && intermediateStops.length > 0) {
+            console.log(`💾 Saving ${intermediateStops.length} intermediate stops for course ${courseId}`);
+
+            for (let i = 0; i < intermediateStops.length; i++) {
+                const stop = intermediateStops[i];
+                await db.query(`
+                    INSERT INTO arrets_intermediaires (
+                        id_course,
+                        ordre_arret,
+                        adresse,
+                        latitude,
+                        longitude
+                    ) VALUES ($1, $2, $3, $4, $5)
+                `, [
+                    courseId,
+                    i + 1, // ordre commence à 1
+                    stop.description || stop.address || `Arrêt ${i + 1}`,
+                    parseFloat(stop.latitude) || 0,
+                    parseFloat(stop.longitude) || 0
+                ]);
+            }
+
+            console.log(`✅ Saved ${intermediateStops.length} intermediate stops`);
+        }
+
         // Store search session data
         activeSearches.set(searchId, {
             courseId: courseId,
             status: 'searching',
             origin: origin,
             destination: destination,
+            intermediateStops: intermediateStops || [],
             estimatedFare: estimatedFare,
             startTime: new Date(),
             paymentMethod: paymentMethod,
             vehicleType: vehicleType
         });
-        
+
         await db.query('COMMIT');
         
         console.log(`✅ Ride search started: ${searchId} (Course ID: ${courseId})`);
@@ -172,6 +201,12 @@ router.post('/search', async (req, res) => {
                     id: courseId,
                     pickup: originAddress,
                     destination: destinationAddress,
+                    intermediateStops: (intermediateStops || []).map((stop, index) => ({
+                        description: stop.description || stop.address || `Arrêt ${index + 1}`,
+                        address: stop.description || stop.address || `Arrêt ${index + 1}`,
+                        latitude: parseFloat(stop.latitude) || 0,
+                        longitude: parseFloat(stop.longitude) || 0
+                    })),
                     distance: `${cleanDistance} km`,
                     duration: `${cleanDuration} min`,
                     price: cleanFare,
@@ -439,12 +474,12 @@ router.delete('/search/:searchId', async (req, res) => {
 // Get ride details after driver is found
 router.get('/ride/:courseId', async (req, res) => {
     const { courseId } = req.params;
-    
+
     try {
         console.log(`🚗 Fetching ride details: ${courseId}`);
-        
+
         const rideResult = await db.query(`
-            SELECT 
+            SELECT
                 c.*,
                 ch.nom as chauffeur_nom,
                 ch.prenom as chauffeur_prenom,
@@ -453,22 +488,40 @@ router.get('/ride/:courseId', async (req, res) => {
             LEFT JOIN Chauffeur ch ON c.id_chauffeur = ch.id_chauffeur
             WHERE c.id_course = $1
         `, [courseId]);
-        
+
         if (rideResult.rowCount === 0) {
             return res.status(404).json({
                 success: false,
                 error: 'Ride not found'
             });
         }
-        
+
         const ride = rideResult.rows[0];
-        
+
+        // Récupérer les arrêts intermédiaires
+        const stopsResult = await db.query(`
+            SELECT adresse, latitude, longitude, ordre_arret
+            FROM arrets_intermediaires
+            WHERE id_course = $1
+            ORDER BY ordre_arret ASC
+        `, [courseId]);
+
+        const intermediateStops = stopsResult.rows.map(stop => ({
+            description: stop.adresse,
+            address: stop.adresse,
+            latitude: parseFloat(stop.latitude),
+            longitude: parseFloat(stop.longitude)
+        }));
+
+        console.log(`📍 Found ${intermediateStops.length} intermediate stops for course ${courseId}`);
+
         res.json({
             success: true,
             ride: {
                 id: ride.id_course,
                 origin: ride.adresse_depart,
                 destination: ride.adresse_arrivee,
+                intermediateStops: intermediateStops,
                 status: ride.etat_course,
                 price: ride.prix,
                 paymentMethod: ride.mode_paiement,
@@ -496,7 +549,7 @@ router.get('/ride/:courseId', async (req, res) => {
                 }
             }
         });
-        
+
     } catch (err) {
         console.error("❌ Error fetching ride details:", err);
         res.status(500).json({
