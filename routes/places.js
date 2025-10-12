@@ -101,15 +101,12 @@ router.get('/autocomplete', async (req, res) => {
 
         const url = 'https://maps.googleapis.com/maps/api/place/autocomplete/json';
 
-        // 🌍 En production : restreindre au Sénégal uniquement
-        // 🧪 En développement : permettre tous les pays pour tester
-        const isProduction = process.env.NODE_ENV === 'production';
-
+        // 🌍 Permettre les recherches dans tous les pays
         const params = {
             input: query.trim(),
             key: GOOGLE_API_KEY,
             language: 'fr',
-            components: isProduction ? 'country:sn' : undefined, // Restriction conditionnelle
+            // components: 'country:sn', // Restriction supprimée pour permettre toutes les adresses du monde
             sessiontoken: sessiontoken || undefined
         };
 
