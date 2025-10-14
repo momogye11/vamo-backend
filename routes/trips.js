@@ -610,14 +610,14 @@ router.post('/driver-cancel', async (req, res) => {
     }
 
     try {
-        console.log(`🚗 Cancelling trip ${tripId}, reason: ${reason || 'No reason provided'}`);
+        console.log(`🚗 Driver ${driverId} cancelling trip ${tripId}, reason: ${reason || 'No reason provided'}`);
 
         await db.query('BEGIN');
 
-        // Get current trip status
+        // Get current trip info (including client ID for notification)
         const currentTrip = await db.query(`
-            SELECT etat_course 
-            FROM Course 
+            SELECT etat_course, id_client, telephone_client
+            FROM Course
             WHERE id_course = $1 AND id_chauffeur = $2
         `, [tripId, driverId]);
 
@@ -629,29 +629,51 @@ router.post('/driver-cancel', async (req, res) => {
             });
         }
 
-        // Cancel trip
+        const trip = currentTrip.rows[0];
+        const clientPhone = trip.telephone_client;
+
+        // ✨ Reset trip to 'en_attente' to allow re-search, remove driver assignment
         await db.query(`
-            UPDATE Course 
-            SET etat_course = 'annulee', id_chauffeur = NULL
+            UPDATE Course
+            SET etat_course = 'en_attente',
+                id_chauffeur = NULL,
+                motif_annulation_chauffeur = $3
             WHERE id_course = $1 AND id_chauffeur = $2
-        `, [tripId, driverId]);
+        `, [tripId, driverId, reason || 'Non spécifié']);
 
         // 🔧 Remettre le chauffeur comme disponible après annulation
         await db.query(`
-            UPDATE Chauffeur 
-            SET disponibilite = true 
+            UPDATE Chauffeur
+            SET disponibilite = true
             WHERE id_chauffeur = $1
         `, [driverId]);
-        
+
         console.log(`✅ Chauffeur ${driverId} is now available again after cancelling trip`);
 
         await db.query('COMMIT');
 
-        console.log(`✅ Trip ${tripId} cancelled successfully`);
+        console.log(`✅ Trip ${tripId} reset to 'en_attente' for automatic re-search`);
+
+        // 📡 Notify client about driver cancellation
+        try {
+            console.log(`📡 Notifying client ${clientPhone} about driver cancellation`);
+
+            const { notifyClient } = require('../routes/websocket');
+            const notifyResult = await notifyClient(clientPhone, 'driver_cancelled', {
+                tripId: tripId,
+                reason: reason || 'Non spécifié',
+                message: 'Le chauffeur a annulé la course. Recherche d\'un nouveau chauffeur en cours...'
+            });
+
+            console.log(`📡 Client notification result:`, notifyResult);
+        } catch (notifyError) {
+            console.error('❌ Error notifying client about driver cancellation:', notifyError);
+            // Don't fail the request if notification fails
+        }
 
         res.json({
             success: true,
-            message: 'Course annulée avec succès'
+            message: 'Course annulée avec succès. La recherche va redémarrer automatiquement.'
         });
 
     } catch (err) {

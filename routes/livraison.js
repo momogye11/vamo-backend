@@ -773,6 +773,94 @@ router.post('/cancel', async (req, res) => {
     }
 });
 
+// Cancel delivery (delivery driver cancelling accepted delivery)
+router.post('/driver-cancel', async (req, res) => {
+    const { deliveryId, livraisonId, reason } = req.body;
+
+    if (!deliveryId || !livraisonId) {
+        return res.status(400).json({
+            success: false,
+            error: 'deliveryId et livraisonId sont requis'
+        });
+    }
+
+    try {
+        console.log(`🛵 Delivery driver ${deliveryId} cancelling delivery ${livraisonId}, reason: ${reason || 'No reason provided'}`);
+
+        await pool.query('BEGIN');
+
+        // Get current delivery info (including client phone for notification)
+        const currentDelivery = await pool.query(`
+            SELECT etat_livraison, id_client, telephone_client
+            FROM Livraison
+            WHERE id_livraison = $1 AND id_livreur = $2
+        `, [livraisonId, deliveryId]);
+
+        if (currentDelivery.rowCount === 0) {
+            await pool.query('ROLLBACK');
+            return res.status(404).json({
+                success: false,
+                error: 'Livraison non trouvée'
+            });
+        }
+
+        const delivery = currentDelivery.rows[0];
+        const clientPhone = delivery.telephone_client;
+
+        // ✨ Reset delivery to 'en_attente' to allow re-search, remove driver assignment
+        await pool.query(`
+            UPDATE Livraison
+            SET etat_livraison = 'en_attente',
+                id_livreur = NULL,
+                motif_annulation_livreur = $3
+            WHERE id_livraison = $1 AND id_livreur = $2
+        `, [livraisonId, deliveryId, reason || 'Non spécifié']);
+
+        // 🔧 Remettre le livreur comme disponible après annulation
+        await pool.query(`
+            UPDATE Livreur
+            SET disponibilite = true
+            WHERE id_livreur = $1
+        `, [deliveryId]);
+
+        console.log(`✅ Delivery driver ${deliveryId} is now available again after cancelling delivery`);
+
+        await pool.query('COMMIT');
+
+        console.log(`✅ Delivery ${livraisonId} reset to 'en_attente' for automatic re-search`);
+
+        // 📡 Notify client about delivery driver cancellation
+        try {
+            console.log(`📡 Notifying client ${clientPhone} about delivery driver cancellation`);
+
+            const { notifyClient } = require('../routes/websocket');
+            const notifyResult = await notifyClient(clientPhone, 'driver_cancelled', {
+                deliveryId: livraisonId,
+                reason: reason || 'Non spécifié',
+                message: 'Le livreur a annulé la livraison. Recherche d\'un nouveau livreur en cours...'
+            });
+
+            console.log(`📡 Client notification result:`, notifyResult);
+        } catch (notifyError) {
+            console.error('❌ Error notifying client about delivery driver cancellation:', notifyError);
+            // Don't fail the request if notification fails
+        }
+
+        res.json({
+            success: true,
+            message: 'Livraison annulée avec succès. La recherche va redémarrer automatiquement.'
+        });
+
+    } catch (err) {
+        await pool.query('ROLLBACK');
+        console.error("❌ Error cancelling delivery:", err);
+        res.status(500).json({
+            success: false,
+            error: 'Erreur serveur'
+        });
+    }
+});
+
 // =====================================
 // ENDPOINTS POUR CHANGEMENTS D'ÉTAT
 // Copiés de trips.js et adaptés pour les livraisons
