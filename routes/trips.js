@@ -535,10 +535,11 @@ router.post('/cancel', async (req, res) => {
         }
 
         // Cancel trip (set status to cancelled)
+        // ✅ Allow cancellation if trip is 'en_attente' OR 'acceptee' (driver accepted but not started)
         const result = await db.query(`
-            UPDATE Course 
+            UPDATE Course
             SET etat_course = 'annulee'
-            WHERE id_course = $1 AND etat_course = 'en_attente'
+            WHERE id_course = $1 AND etat_course IN ('en_attente', 'acceptee')
         `, [actualCourseId]);
 
         if (result.rowCount === 0) {
