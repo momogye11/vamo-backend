@@ -805,7 +805,7 @@ router.post('/driver-cancel', async (req, res) => {
         }
 
         const delivery = currentDelivery.rows[0];
-        const clientPhone = delivery.telephone_client;
+        const clientId = delivery.id_client;
 
         // ✨ Reset delivery to 'en_attente' to allow re-search, remove driver assignment
         await pool.query(`
@@ -831,16 +831,27 @@ router.post('/driver-cancel', async (req, res) => {
 
         // 📡 Notify client about delivery driver cancellation
         try {
-            console.log(`📡 Notifying client ${clientPhone} about delivery driver cancellation`);
+            console.log(`📡 Notifying client ${clientId} about delivery driver cancellation`);
 
             const { notifyClient } = require('../routes/websocket');
-            const notifyResult = await notifyClient(clientPhone, 'driver_cancelled', {
-                deliveryId: livraisonId,
-                reason: reason || 'Non spécifié',
-                message: 'Le livreur a annulé la livraison. Recherche d\'un nouveau livreur en cours...'
-            });
 
-            console.log(`📡 Client notification result:`, notifyResult);
+            const notification = {
+                type: 'driver_cancelled',
+                data: {
+                    deliveryId: livraisonId,
+                    reason: reason || 'Non spécifié',
+                    message: 'Le livreur a annulé la livraison. Recherche d\'un nouveau livreur en cours...',
+                    timestamp: new Date().toISOString()
+                }
+            };
+
+            const notifyResult = await notifyClient(clientId, notification);
+
+            if (notifyResult) {
+                console.log(`✅ Client ${clientId} successfully notified of delivery driver cancellation`);
+            } else {
+                console.log(`⚠️ Client ${clientId} was NOT notified (not connected or error)`);
+            }
         } catch (notifyError) {
             console.error('❌ Error notifying client about delivery driver cancellation:', notifyError);
             // Don't fail the request if notification fails

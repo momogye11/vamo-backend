@@ -631,16 +631,16 @@ router.post('/driver-cancel', async (req, res) => {
         }
 
         const trip = currentTrip.rows[0];
-        const clientPhone = trip.telephone_client;
+        const clientId = trip.id_client;
 
         // ✨ Reset trip to 'en_attente' to allow re-search, remove driver assignment
+        // TODO: Add motif_annulation_chauffeur column to Course table to store cancellation reason
         await db.query(`
             UPDATE Course
             SET etat_course = 'en_attente',
-                id_chauffeur = NULL,
-                motif_annulation_chauffeur = $3
+                id_chauffeur = NULL
             WHERE id_course = $1 AND id_chauffeur = $2
-        `, [tripId, driverId, reason || 'Non spécifié']);
+        `, [tripId, driverId]);
 
         // 🔧 Remettre le chauffeur comme disponible après annulation
         await db.query(`
@@ -657,16 +657,27 @@ router.post('/driver-cancel', async (req, res) => {
 
         // 📡 Notify client about driver cancellation
         try {
-            console.log(`📡 Notifying client ${clientPhone} about driver cancellation`);
+            console.log(`📡 Notifying client ${clientId} about driver cancellation`);
 
             const { notifyClient } = require('../routes/websocket');
-            const notifyResult = await notifyClient(clientPhone, 'driver_cancelled', {
-                tripId: tripId,
-                reason: reason || 'Non spécifié',
-                message: 'Le chauffeur a annulé la course. Recherche d\'un nouveau chauffeur en cours...'
-            });
 
-            console.log(`📡 Client notification result:`, notifyResult);
+            const notification = {
+                type: 'driver_cancelled',
+                data: {
+                    tripId: tripId,
+                    reason: reason || 'Non spécifié',
+                    message: 'Le chauffeur a annulé la course. Recherche d\'un nouveau chauffeur en cours...',
+                    timestamp: new Date().toISOString()
+                }
+            };
+
+            const notifyResult = await notifyClient(clientId, notification);
+
+            if (notifyResult) {
+                console.log(`✅ Client ${clientId} successfully notified of driver cancellation`);
+            } else {
+                console.log(`⚠️ Client ${clientId} was NOT notified (not connected or error)`);
+            }
         } catch (notifyError) {
             console.error('❌ Error notifying client about driver cancellation:', notifyError);
             // Don't fail the request if notification fails
