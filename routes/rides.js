@@ -184,15 +184,37 @@ router.post('/search', async (req, res) => {
         try {
             console.log('📡 Broadcasting new ride to all available drivers...');
             
-            // Récupérer tous les chauffeurs disponibles
+            // Récupérer tous les chauffeurs disponibles (en excluant ceux blacklistés pour cette course)
             const availableDrivers = await db.query(`
-                SELECT id_chauffeur, nom, prenom 
-                FROM Chauffeur 
-                WHERE disponibilite = true 
-                AND statut_validation = 'approuve'
-            `);
-            
-            console.log(`📊 Found ${availableDrivers.rowCount} available drivers to notify`);
+                SELECT c.id_chauffeur, c.nom, c.prenom
+                FROM Chauffeur c
+                WHERE c.disponibilite = true
+                AND c.statut_validation = 'approuve'
+                AND c.id_chauffeur NOT IN (
+                    SELECT b.id_chauffeur
+                    FROM ChauffeurBlacklistTemporaire b
+                    WHERE b.id_course = $1
+                    AND b.blacklist_jusqu_a > NOW()
+                )
+            `, [courseId]);
+
+            // Log des chauffeurs blacklistés pour cette course (pour debug)
+            const blacklistedDrivers = await db.query(`
+                SELECT b.id_chauffeur, c.nom, c.prenom, b.blacklist_jusqu_a, b.raison
+                FROM ChauffeurBlacklistTemporaire b
+                JOIN Chauffeur c ON b.id_chauffeur = c.id_chauffeur
+                WHERE b.id_course = $1 AND b.blacklist_jusqu_a > NOW()
+            `, [courseId]);
+
+            if (blacklistedDrivers.rowCount > 0) {
+                console.log(`🚫 ${blacklistedDrivers.rowCount} driver(s) blacklisted for this trip:`);
+                blacklistedDrivers.rows.forEach(driver => {
+                    console.log(`   - Driver ${driver.id_chauffeur} (${driver.prenom} ${driver.nom}) until ${driver.blacklist_jusqu_a.toLocaleString('fr-FR')}`);
+                    console.log(`     Reason: ${driver.raison}`);
+                });
+            }
+
+            console.log(`📊 Found ${availableDrivers.rowCount} available drivers to notify (after blacklist filter)`);
             
             // Préparer les données de la course pour la notification
             const rideNotification = {

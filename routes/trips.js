@@ -655,6 +655,24 @@ router.post('/driver-cancel', async (req, res) => {
 
         console.log(`✅ Trip ${tripId} reset to 'en_attente' for automatic re-search`);
 
+        // 🚫 Add driver to temporary blacklist for this trip (10 minutes)
+        try {
+            const blacklistDuration = 10; // minutes
+            const blacklistUntil = new Date(Date.now() + blacklistDuration * 60 * 1000);
+
+            await db.query(`
+                INSERT INTO ChauffeurBlacklistTemporaire (id_chauffeur, id_course, blacklist_jusqu_a, raison)
+                VALUES ($1, $2, $3, $4)
+                ON CONFLICT (id_chauffeur, id_course) DO UPDATE
+                SET blacklist_jusqu_a = $3, raison = $4
+            `, [driverId, tripId, blacklistUntil, reason || 'Annulation par le chauffeur']);
+
+            console.log(`🚫 Driver ${driverId} blacklisted for trip ${tripId} until ${blacklistUntil.toLocaleString('fr-FR')}`);
+        } catch (blacklistError) {
+            console.error('❌ Error adding driver to blacklist:', blacklistError);
+            // Don't fail the request if blacklist fails
+        }
+
         // 📡 Notify client about driver cancellation
         try {
             console.log(`📡 Notifying client ${clientId} about driver cancellation`);
