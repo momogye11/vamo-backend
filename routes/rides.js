@@ -184,7 +184,7 @@ router.post('/search', async (req, res) => {
         try {
             console.log('📡 Broadcasting new ride to all available drivers...');
             
-            // Récupérer tous les chauffeurs disponibles (en excluant ceux blacklistés pour cette course)
+            // Récupérer tous les chauffeurs disponibles (en excluant ceux blacklistés pour ce client/trajet)
             const availableDrivers = await db.query(`
                 SELECT c.id_chauffeur, c.nom, c.prenom
                 FROM Chauffeur c
@@ -193,24 +193,29 @@ router.post('/search', async (req, res) => {
                 AND c.id_chauffeur NOT IN (
                     SELECT b.id_chauffeur
                     FROM ChauffeurBlacklistTemporaire b
-                    WHERE b.id_course = $1
+                    WHERE b.id_client = $1
+                    AND b.adresse_depart = $2
+                    AND b.adresse_arrivee = $3
                     AND b.blacklist_jusqu_a > NOW()
                 )
-            `, [courseId]);
+            `, [clientId || 1, originAddress, destinationAddress]);
 
-            // Log des chauffeurs blacklistés pour cette course (pour debug)
+            // Log des chauffeurs blacklistés pour ce trajet (pour debug)
             const blacklistedDrivers = await db.query(`
-                SELECT b.id_chauffeur, c.nom, c.prenom, b.blacklist_jusqu_a, b.raison
+                SELECT b.id_chauffeur, ch.nom, ch.prenom, b.blacklist_jusqu_a, b.raison, b.id_course
                 FROM ChauffeurBlacklistTemporaire b
-                JOIN Chauffeur c ON b.id_chauffeur = c.id_chauffeur
-                WHERE b.id_course = $1 AND b.blacklist_jusqu_a > NOW()
-            `, [courseId]);
+                JOIN Chauffeur ch ON b.id_chauffeur = ch.id_chauffeur
+                WHERE b.id_client = $1
+                AND b.adresse_depart = $2
+                AND b.adresse_arrivee = $3
+                AND b.blacklist_jusqu_a > NOW()
+            `, [clientId || 1, originAddress, destinationAddress]);
 
             if (blacklistedDrivers.rowCount > 0) {
-                console.log(`🚫 ${blacklistedDrivers.rowCount} driver(s) blacklisted for this trip:`);
+                console.log(`🚫 ${blacklistedDrivers.rowCount} driver(s) blacklisted for this route (client ${clientId || 1}):`);
                 blacklistedDrivers.rows.forEach(driver => {
                     console.log(`   - Driver ${driver.id_chauffeur} (${driver.prenom} ${driver.nom}) until ${driver.blacklist_jusqu_a.toLocaleString('fr-FR')}`);
-                    console.log(`     Reason: ${driver.raison}`);
+                    console.log(`     Reason: ${driver.raison} (original trip: ${driver.id_course})`);
                 });
             }
 

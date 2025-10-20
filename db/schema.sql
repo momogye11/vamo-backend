@@ -93,6 +93,9 @@ CREATE TABLE ChauffeurBlacklistTemporaire (
     id_blacklist SERIAL PRIMARY KEY,
     id_chauffeur INTEGER REFERENCES Chauffeur(id_chauffeur) ON DELETE CASCADE,
     id_course INTEGER REFERENCES Course(id_course) ON DELETE CASCADE,
+    id_client INTEGER REFERENCES Client(id_client) ON DELETE CASCADE,
+    adresse_depart TEXT,
+    adresse_arrivee TEXT,
     blacklist_jusqu_a TIMESTAMP NOT NULL,
     raison TEXT DEFAULT 'Annulation par le chauffeur',
     date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -101,6 +104,7 @@ CREATE TABLE ChauffeurBlacklistTemporaire (
 
 CREATE INDEX idx_blacklist_expiration ON ChauffeurBlacklistTemporaire(blacklist_jusqu_a);
 CREATE INDEX idx_blacklist_course ON ChauffeurBlacklistTemporaire(id_course);
+CREATE INDEX idx_blacklist_client_trajet ON ChauffeurBlacklistTemporaire(id_chauffeur, id_client, blacklist_jusqu_a);
 
 CREATE TABLE HistoriqueCourse (
     id_course INTEGER PRIMARY KEY,

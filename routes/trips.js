@@ -655,19 +655,34 @@ router.post('/driver-cancel', async (req, res) => {
 
         console.log(`✅ Trip ${tripId} reset to 'en_attente' for automatic re-search`);
 
-        // 🚫 Add driver to temporary blacklist for this trip (10 minutes)
+        // 🚫 Add driver to temporary blacklist for this client/route (10 minutes)
+        // Blacklist is based on client + route, not just trip ID
         try {
             const blacklistDuration = 10; // minutes
             const blacklistUntil = new Date(Date.now() + blacklistDuration * 60 * 1000);
 
             await db.query(`
-                INSERT INTO ChauffeurBlacklistTemporaire (id_chauffeur, id_course, blacklist_jusqu_a, raison)
-                VALUES ($1, $2, $3, $4)
+                INSERT INTO ChauffeurBlacklistTemporaire (
+                    id_chauffeur, id_course, id_client, adresse_depart, adresse_arrivee, blacklist_jusqu_a, raison
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
                 ON CONFLICT (id_chauffeur, id_course) DO UPDATE
-                SET blacklist_jusqu_a = $3, raison = $4
-            `, [driverId, tripId, blacklistUntil, reason || 'Annulation par le chauffeur']);
+                SET blacklist_jusqu_a = EXCLUDED.blacklist_jusqu_a,
+                    raison = EXCLUDED.raison,
+                    id_client = EXCLUDED.id_client,
+                    adresse_depart = EXCLUDED.adresse_depart,
+                    adresse_arrivee = EXCLUDED.adresse_arrivee
+            `, [
+                driverId,
+                tripId,
+                trip.id_client,
+                trip.adresse_depart,
+                trip.adresse_arrivee,
+                blacklistUntil,
+                reason || 'Annulation par le chauffeur'
+            ]);
 
-            console.log(`🚫 Driver ${driverId} blacklisted for trip ${tripId} until ${blacklistUntil.toLocaleString('fr-FR')}`);
+            console.log(`🚫 Driver ${driverId} blacklisted for client ${trip.id_client} route (${trip.adresse_depart} → ${trip.adresse_arrivee}) until ${blacklistUntil.toLocaleString('fr-FR')}`);
         } catch (blacklistError) {
             console.error('❌ Error adding driver to blacklist:', blacklistError);
             // Don't fail the request if blacklist fails
