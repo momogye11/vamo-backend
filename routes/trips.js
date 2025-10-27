@@ -974,22 +974,56 @@ router.post('/start-trip', async (req, res) => {
         // 🚀 NOTIFICATION WEBSOCKET AU CLIENT
         try {
             const { notifyClient } = require('./websocket');
-            
-            const notification = {
-                type: 'trip_started',
-                data: {
-                    tripId: tripId,
-                    message: 'Votre voyage a commencé ! Direction: ' + (trip.adresse_arrivee || 'votre destination'),
-                    driver: driverData,
-                    destination: trip.adresse_arrivee,
-                    timestamp: new Date().toISOString()
-                }
-            };
+
+            // ✅ Vérifier s'il y a des arrêts intermédiaires
+            const intermediateStopsResult = await db.query(`
+                SELECT * FROM arrets_intermediaires
+                WHERE id_course = $1
+                ORDER BY ordre_arret ASC
+            `, [tripId]);
+
+            const hasIntermediateStops = intermediateStopsResult.rowCount > 0;
+
+            let notification;
+
+            if (hasIntermediateStops) {
+                // Si des arrêts intermédiaires existent, notifier que le chauffeur va vers le premier arrêt
+                const firstStop = intermediateStopsResult.rows[0];
+                notification = {
+                    type: 'driving_to_stop',
+                    data: {
+                        tripId: tripId,
+                        stopIndex: 0,
+                        stopName: firstStop.adresse || `Arrêt ${firstStop.ordre_arret}`,
+                        stopLocation: {
+                            latitude: parseFloat(firstStop.latitude),
+                            longitude: parseFloat(firstStop.longitude)
+                        },
+                        message: `Votre voyage a commencé ! Direction: ${firstStop.adresse || `Arrêt ${firstStop.ordre_arret}`}`,
+                        driver: driverData,
+                        timestamp: new Date().toISOString()
+                    }
+                };
+                console.log(`🛣️ Trip ${tripId} started with intermediate stops - heading to first stop:`, firstStop.adresse);
+            } else {
+                // Pas d'arrêts intermédiaires, notification normale
+                notification = {
+                    type: 'trip_started',
+                    data: {
+                        tripId: tripId,
+                        message: 'Votre voyage a commencé ! Direction: ' + (trip.adresse_arrivee || 'votre destination'),
+                        driver: driverData,
+                        destination: trip.adresse_arrivee,
+                        timestamp: new Date().toISOString()
+                    }
+                };
+                console.log(`🛣️ Trip ${tripId} started without intermediate stops`);
+            }
 
             // Notifier le client (si connecté via WebSocket)
             await notifyClient(trip.id_client, notification);
             console.log(`✅ Client ${trip.id_client} notified of trip start`);
-            
+
         } catch (wsError) {
             console.error('⚠️ WebSocket notification failed (trip status updated):', wsError.message);
             // Ne pas faire échouer la requête si la notification échoue
@@ -1029,6 +1063,191 @@ router.post('/start-trip', async (req, res) => {
     } catch (err) {
         await db.query('ROLLBACK');
         console.error("❌ Error starting trip:", err);
+        res.status(500).json({
+            success: false,
+            error: 'Erreur serveur'
+        });
+    }
+});
+
+// ✅ API pour notifier l'arrivée à un arrêt intermédiaire
+router.post('/arrive-stop', async (req, res) => {
+    const { driverId, tripId, stopIndex } = req.body;
+
+    if (!driverId || !tripId || stopIndex === undefined) {
+        return res.status(400).json({
+            success: false,
+            error: 'driverId, tripId et stopIndex sont requis'
+        });
+    }
+
+    try {
+        console.log(`📍 Driver ${driverId} arrived at stop ${stopIndex} for trip ${tripId}`);
+
+        // Vérifier que la course existe et appartient au chauffeur
+        const tripResult = await db.query(`
+            SELECT * FROM Course
+            WHERE id_course = $1 AND id_chauffeur = $2
+        `, [tripId, driverId]);
+
+        if (tripResult.rowCount === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Course non trouvée'
+            });
+        }
+
+        const trip = tripResult.rows[0];
+
+        // Récupérer l'arrêt intermédiaire
+        const stopResult = await db.query(`
+            SELECT * FROM arrets_intermediaires
+            WHERE id_course = $1 AND ordre_arret = $2
+        `, [tripId, stopIndex + 1]); // ordre_arret commence à 1
+
+        if (stopResult.rowCount === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Arrêt intermédiaire non trouvé'
+            });
+        }
+
+        const stop = stopResult.rows[0];
+
+        // 🚀 NOTIFICATION WEBSOCKET AU CLIENT
+        try {
+            const { notifyClient } = require('./websocket');
+
+            const notification = {
+                type: 'arrived_at_stop',
+                data: {
+                    tripId: tripId,
+                    stopIndex: stopIndex,
+                    stopName: stop.adresse || `Arrêt ${stopIndex + 1}`,
+                    message: `Votre chauffeur est arrivé à ${stop.adresse || `l'arrêt ${stopIndex + 1}`}`,
+                    timestamp: new Date().toISOString()
+                }
+            };
+
+            await notifyClient(trip.id_client, notification);
+            console.log(`✅ Client ${trip.id_client} notified of arrival at stop ${stopIndex}`);
+
+        } catch (wsError) {
+            console.error('⚠️ WebSocket notification failed:', wsError.message);
+        }
+
+        res.json({
+            success: true,
+            message: `Arrivée à l'arrêt ${stopIndex + 1} enregistrée`,
+            stop: {
+                index: stopIndex,
+                address: stop.adresse
+            }
+        });
+
+    } catch (err) {
+        console.error("❌ Error arriving at stop:", err);
+        res.status(500).json({
+            success: false,
+            error: 'Erreur serveur'
+        });
+    }
+});
+
+// ✅ API pour continuer depuis un arrêt intermédiaire
+router.post('/continue-from-stop', async (req, res) => {
+    const { driverId, tripId, currentStopIndex } = req.body;
+
+    if (!driverId || !tripId || currentStopIndex === undefined) {
+        return res.status(400).json({
+            success: false,
+            error: 'driverId, tripId et currentStopIndex sont requis'
+        });
+    }
+
+    try {
+        console.log(`🚗 Driver ${driverId} continuing from stop ${currentStopIndex} for trip ${tripId}`);
+
+        // Vérifier que la course existe et appartient au chauffeur
+        const tripResult = await db.query(`
+            SELECT * FROM Course
+            WHERE id_course = $1 AND id_chauffeur = $2
+        `, [tripId, driverId]);
+
+        if (tripResult.rowCount === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Course non trouvée'
+            });
+        }
+
+        const trip = tripResult.rows[0];
+
+        // Vérifier s'il y a un prochain arrêt
+        const nextStopResult = await db.query(`
+            SELECT * FROM arrets_intermediaires
+            WHERE id_course = $1 AND ordre_arret = $2
+            ORDER BY ordre_arret ASC
+        `, [tripId, currentStopIndex + 2]); // ordre_arret commence à 1
+
+        const hasNextStop = nextStopResult.rowCount > 0;
+
+        // 🚀 NOTIFICATION WEBSOCKET AU CLIENT
+        try {
+            const { notifyClient } = require('./websocket');
+
+            let notification;
+
+            if (hasNextStop) {
+                // Il y a un prochain arrêt
+                const nextStop = nextStopResult.rows[0];
+                notification = {
+                    type: 'continuing_from_stop',
+                    data: {
+                        tripId: tripId,
+                        nextStopIndex: currentStopIndex + 1,
+                        nextStopName: nextStop.adresse || `Arrêt ${currentStopIndex + 2}`,
+                        nextStopLocation: {
+                            latitude: parseFloat(nextStop.latitude),
+                            longitude: parseFloat(nextStop.longitude)
+                        },
+                        message: `Votre chauffeur se dirige vers ${nextStop.adresse || `l'arrêt ${currentStopIndex + 2}`}`,
+                        timestamp: new Date().toISOString()
+                    }
+                };
+                console.log(`🛣️ Continuing to next stop: ${nextStop.adresse}`);
+            } else {
+                // Dernier arrêt, direction destination finale
+                notification = {
+                    type: 'continuing_from_stop',
+                    data: {
+                        tripId: tripId,
+                        goingToDestination: true,
+                        message: `Votre chauffeur se dirige vers votre destination finale: ${trip.adresse_arrivee}`,
+                        timestamp: new Date().toISOString()
+                    }
+                };
+                console.log(`🛣️ Continuing to final destination: ${trip.adresse_arrivee}`);
+            }
+
+            await notifyClient(trip.id_client, notification);
+            console.log(`✅ Client ${trip.id_client} notified of continuation from stop ${currentStopIndex}`);
+
+        } catch (wsError) {
+            console.error('⚠️ WebSocket notification failed:', wsError.message);
+        }
+
+        res.json({
+            success: true,
+            message: hasNextStop ? 'En route vers le prochain arrêt' : 'En route vers la destination finale',
+            nextStop: hasNextStop ? {
+                index: currentStopIndex + 1,
+                address: nextStopResult.rows[0].adresse
+            } : null
+        });
+
+    } catch (err) {
+        console.error("❌ Error continuing from stop:", err);
         res.status(500).json({
             success: false,
             error: 'Erreur serveur'
