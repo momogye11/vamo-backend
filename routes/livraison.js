@@ -1063,17 +1063,51 @@ router.post('/start-delivery', async (req, res) => {
         // 🔌 WEBSOCKET NOTIFICATION AU CLIENT
         try {
             const { notifyClient } = require('./websocket');
-            
-            const notification = {
-                type: 'trip_started',
-                data: {
-                    deliveryId: deliveryId,
-                    message: 'Votre livraison a commencé',
-                    driver: driverData.rows[0],
-                    destination: delivery.adresse_arrivee,
-                    timestamp: new Date().toISOString()
-                }
-            };
+
+            // ✅ Vérifier s'il y a des arrêts intermédiaires
+            const intermediateStopsResult = await pool.query(`
+                SELECT * FROM arrets_intermediaires_livraison
+                WHERE id_livraison = $1
+                ORDER BY ordre_arret ASC
+            `, [deliveryId]);
+
+            const hasIntermediateStops = intermediateStopsResult.rowCount > 0;
+
+            let notification;
+
+            if (hasIntermediateStops) {
+                // Si des arrêts intermédiaires existent, notifier que le livreur va vers le premier arrêt
+                const firstStop = intermediateStopsResult.rows[0];
+                notification = {
+                    type: 'driving_to_stop',
+                    data: {
+                        deliveryId: deliveryId,
+                        stopIndex: 0,
+                        stopName: firstStop.adresse || `Arrêt ${firstStop.ordre_arret}`,
+                        stopLocation: {
+                            latitude: parseFloat(firstStop.latitude),
+                            longitude: parseFloat(firstStop.longitude)
+                        },
+                        message: `Votre livraison a commencé ! Direction: ${firstStop.adresse || `Arrêt ${firstStop.ordre_arret}`}`,
+                        driver: driverData.rows[0],
+                        timestamp: new Date().toISOString()
+                    }
+                };
+                console.log(`🛣️ Delivery ${deliveryId} started with intermediate stops - heading to first stop:`, firstStop.adresse);
+            } else {
+                // Pas d'arrêts intermédiaires, notification normale
+                notification = {
+                    type: 'trip_started',
+                    data: {
+                        deliveryId: deliveryId,
+                        message: 'Votre livraison a commencé',
+                        driver: driverData.rows[0],
+                        destination: delivery.adresse_arrivee,
+                        timestamp: new Date().toISOString()
+                    }
+                };
+                console.log(`🛣️ Delivery ${deliveryId} started without intermediate stops`);
+            }
 
             // Notifier le client (si connecté via WebSocket)
             const notificationSent = await notifyClient(delivery.id_client, notification);
@@ -1104,6 +1138,191 @@ router.post('/start-delivery', async (req, res) => {
     } catch (err) {
         await pool.query('ROLLBACK');
         console.error("❌ Error starting delivery:", err);
+        res.status(500).json({
+            success: false,
+            error: 'Erreur serveur'
+        });
+    }
+});
+
+// ✅ API pour notifier l'arrivée à un arrêt intermédiaire (LIVRAISON)
+router.post('/arrive-stop-delivery', async (req, res) => {
+    const { driverId, deliveryId, stopIndex } = req.body;
+
+    if (!driverId || !deliveryId || stopIndex === undefined) {
+        return res.status(400).json({
+            success: false,
+            error: 'driverId, deliveryId et stopIndex sont requis'
+        });
+    }
+
+    try {
+        console.log(`📍 Delivery driver ${driverId} arrived at stop ${stopIndex} for delivery ${deliveryId}`);
+
+        // Vérifier que la livraison existe et appartient au livreur
+        const deliveryResult = await pool.query(`
+            SELECT * FROM Livraison
+            WHERE id_livraison = $1 AND id_livreur = $2
+        `, [deliveryId, driverId]);
+
+        if (deliveryResult.rowCount === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Livraison non trouvée'
+            });
+        }
+
+        const delivery = deliveryResult.rows[0];
+
+        // Récupérer l'arrêt intermédiaire
+        const stopResult = await pool.query(`
+            SELECT * FROM arrets_intermediaires_livraison
+            WHERE id_livraison = $1 AND ordre_arret = $2
+        `, [deliveryId, stopIndex + 1]); // ordre_arret commence à 1
+
+        if (stopResult.rowCount === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Arrêt intermédiaire non trouvé'
+            });
+        }
+
+        const stop = stopResult.rows[0];
+
+        // 🚀 NOTIFICATION WEBSOCKET AU CLIENT
+        try {
+            const { notifyClient } = require('./websocket');
+
+            const notification = {
+                type: 'arrived_at_stop',
+                data: {
+                    deliveryId: deliveryId,
+                    stopIndex: stopIndex,
+                    stopName: stop.adresse || `Arrêt ${stopIndex + 1}`,
+                    message: `Votre livreur est arrivé à ${stop.adresse || `l'arrêt ${stopIndex + 1}`}`,
+                    timestamp: new Date().toISOString()
+                }
+            };
+
+            await notifyClient(delivery.id_client, notification);
+            console.log(`✅ Client ${delivery.id_client} notified of arrival at stop ${stopIndex}`);
+
+        } catch (wsError) {
+            console.error('⚠️ WebSocket notification failed:', wsError.message);
+        }
+
+        res.json({
+            success: true,
+            message: `Arrivée à l'arrêt ${stopIndex + 1} enregistrée`,
+            stop: {
+                index: stopIndex,
+                address: stop.adresse
+            }
+        });
+
+    } catch (err) {
+        console.error("❌ Error arriving at delivery stop:", err);
+        res.status(500).json({
+            success: false,
+            error: 'Erreur serveur'
+        });
+    }
+});
+
+// ✅ API pour continuer depuis un arrêt intermédiaire (LIVRAISON)
+router.post('/continue-from-stop-delivery', async (req, res) => {
+    const { driverId, deliveryId, currentStopIndex } = req.body;
+
+    if (!driverId || !deliveryId || currentStopIndex === undefined) {
+        return res.status(400).json({
+            success: false,
+            error: 'driverId, deliveryId et currentStopIndex sont requis'
+        });
+    }
+
+    try {
+        console.log(`🚗 Delivery driver ${driverId} continuing from stop ${currentStopIndex} for delivery ${deliveryId}`);
+
+        // Vérifier que la livraison existe et appartient au livreur
+        const deliveryResult = await pool.query(`
+            SELECT * FROM Livraison
+            WHERE id_livraison = $1 AND id_livreur = $2
+        `, [deliveryId, driverId]);
+
+        if (deliveryResult.rowCount === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Livraison non trouvée'
+            });
+        }
+
+        const delivery = deliveryResult.rows[0];
+
+        // Vérifier s'il y a un prochain arrêt
+        const nextStopResult = await pool.query(`
+            SELECT * FROM arrets_intermediaires_livraison
+            WHERE id_livraison = $1 AND ordre_arret = $2
+            ORDER BY ordre_arret ASC
+        `, [deliveryId, currentStopIndex + 2]); // ordre_arret commence à 1
+
+        const hasNextStop = nextStopResult.rowCount > 0;
+
+        // 🚀 NOTIFICATION WEBSOCKET AU CLIENT
+        try {
+            const { notifyClient } = require('./websocket');
+
+            let notification;
+
+            if (hasNextStop) {
+                // Il y a un prochain arrêt
+                const nextStop = nextStopResult.rows[0];
+                notification = {
+                    type: 'continuing_from_stop',
+                    data: {
+                        deliveryId: deliveryId,
+                        nextStopIndex: currentStopIndex + 1,
+                        nextStopName: nextStop.adresse || `Arrêt ${currentStopIndex + 2}`,
+                        nextStopLocation: {
+                            latitude: parseFloat(nextStop.latitude),
+                            longitude: parseFloat(nextStop.longitude)
+                        },
+                        message: `Votre livreur se dirige vers ${nextStop.adresse || `l'arrêt ${currentStopIndex + 2}`}`,
+                        timestamp: new Date().toISOString()
+                    }
+                };
+                console.log(`🛣️ Continuing to next stop: ${nextStop.adresse}`);
+            } else {
+                // Dernier arrêt, direction destination finale
+                notification = {
+                    type: 'continuing_from_stop',
+                    data: {
+                        deliveryId: deliveryId,
+                        goingToDestination: true,
+                        message: `Votre livreur se dirige vers votre destination finale: ${delivery.adresse_arrivee}`,
+                        timestamp: new Date().toISOString()
+                    }
+                };
+                console.log(`🛣️ Continuing to final destination: ${delivery.adresse_arrivee}`);
+            }
+
+            await notifyClient(delivery.id_client, notification);
+            console.log(`✅ Client ${delivery.id_client} notified of continuation from stop ${currentStopIndex}`);
+
+        } catch (wsError) {
+            console.error('⚠️ WebSocket notification failed:', wsError.message);
+        }
+
+        res.json({
+            success: true,
+            message: hasNextStop ? 'En route vers le prochain arrêt' : 'En route vers la destination finale',
+            nextStop: hasNextStop ? {
+                index: currentStopIndex + 1,
+                address: nextStopResult.rows[0].adresse
+            } : null
+        });
+
+    } catch (err) {
+        console.error("❌ Error continuing from delivery stop:", err);
         res.status(500).json({
             success: false,
             error: 'Erreur serveur'
