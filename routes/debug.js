@@ -344,4 +344,42 @@ router.get('/websocket-connections', async (req, res) => {
     }
 });
 
+// Test database connection
+router.get('/test-db', async (req, res) => {
+    try {
+        console.log('🔍 Testing database connection...');
+
+        // Test simple query
+        const result = await pool.query('SELECT NOW() as current_time, version() as pg_version');
+
+        console.log('✅ Database connection successful!');
+
+        res.json({
+            success: true,
+            message: 'Database connection working!',
+            data: {
+                currentTime: result.rows[0].current_time,
+                postgresVersion: result.rows[0].pg_version,
+                connectionInfo: {
+                    database: process.env.PGDATABASE || 'N/A',
+                    host: process.env.PGHOST || 'N/A',
+                    port: process.env.PGPORT || 'N/A'
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Database connection test failed:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            code: error.code,
+            envInfo: {
+                hasDatabaseUrl: !!process.env.DATABASE_URL,
+                hasIndividualVars: !!(process.env.PGHOST && process.env.PGDATABASE)
+            }
+        });
+    }
+});
+
 module.exports = router; 
