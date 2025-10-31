@@ -7,17 +7,17 @@ let pool;
 if (process.env.DATABASE_URL) {
   // Use Railway's DATABASE_URL if available
   pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
+    connectionString: process.env.DATABASE_URL.trim(),
     ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
   });
 } else {
-  // Use individual environment variables
+  // Use individual environment variables - trim all values to remove whitespace/newlines
   pool = new Pool({
-    user: process.env.PGUSER || process.env.DB_USER,
-    host: process.env.PGHOST || process.env.DB_HOST,
-    database: process.env.PGDATABASE || process.env.DB_NAME,
-    password: process.env.PGPASSWORD || process.env.DB_PASSWORD,
-    port: process.env.PGPORT || process.env.DB_PORT || 5432,
+    user: (process.env.PGUSER || process.env.DB_USER || '').trim(),
+    host: (process.env.PGHOST || process.env.DB_HOST || '').trim(),
+    database: (process.env.PGDATABASE || process.env.DB_NAME || '').trim(),
+    password: (process.env.PGPASSWORD || process.env.DB_PASSWORD || '').trim(),
+    port: parseInt((process.env.PGPORT || process.env.DB_PORT || '5432').trim()),
     ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
   });
 }
