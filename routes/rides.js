@@ -48,15 +48,21 @@ router.post('/search', async (req, res) => {
         // Extract addresses and coordinates from the frontend data structure
         const originAddress = origin?.description || origin?.address || 'Unknown origin';
         const destinationAddress = destination?.description || destination?.address || 'Unknown destination';
-        const originCoords = origin?.location || origin?.coordinates || { lat: 14.7275, lng: -17.5113 };
-        const destCoords = destination?.location || destination?.coordinates || { lat: 14.7167, lng: -17.4677 };
-        
+        const originCoords = origin?.location || origin?.coordinates;
+        const destCoords = destination?.location || destination?.coordinates;
+
         // Validate required fields
-        if (!origin || !destination || !estimatedFare) {
-            console.error('❌ Missing required fields:', { origin: !!origin, destination: !!destination, estimatedFare: !!estimatedFare });
+        if (!origin || !destination || !estimatedFare || !originCoords || !destCoords) {
+            console.error('❌ Missing required fields:', {
+                origin: !!origin,
+                destination: !!destination,
+                estimatedFare: !!estimatedFare,
+                originCoords: !!originCoords,
+                destCoords: !!destCoords
+            });
             return res.status(400).json({
                 success: false,
-                error: 'Origin, destination, and estimated fare are required'
+                error: 'Origin, destination, coordinates, and estimated fare are required'
             });
         }
 
@@ -121,12 +127,12 @@ router.post('/search', async (req, res) => {
             clientId || 1, // fallback to 1 if not provided
             originAddress,
             destinationAddress,
-            parseFloat(originCoords.lat || originCoords.latitude) || 14.7275,
-            parseFloat(originCoords.lng || originCoords.longitude) || -17.5113,
-            parseFloat(destCoords.lat || destCoords.latitude) || 14.7167,
-            parseFloat(destCoords.lng || destCoords.longitude) || -17.4677,
+            parseFloat(originCoords.lat || originCoords.latitude),
+            parseFloat(originCoords.lng || originCoords.longitude),
+            parseFloat(destCoords.lat || destCoords.latitude),
+            parseFloat(destCoords.lng || destCoords.longitude),
             cleanDistance,
-            cleanDuration, 
+            cleanDuration,
             cleanFare,
             dbPaymentMethod,
             null, // Client phone will be set when authenticated
@@ -239,12 +245,12 @@ router.post('/search', async (req, res) => {
                     price: cleanFare,
                     paymentMethod: dbPaymentMethod,
                     pickupCoords: {
-                        latitude: parseFloat(originCoords.lat || originCoords.latitude) || 14.7275,
-                        longitude: parseFloat(originCoords.lng || originCoords.longitude) || -17.5113
+                        latitude: parseFloat(originCoords.lat || originCoords.latitude),
+                        longitude: parseFloat(originCoords.lng || originCoords.longitude)
                     },
                     destinationCoords: {
-                        latitude: parseFloat(destCoords.lat || destCoords.latitude) || 14.7167,
-                        longitude: parseFloat(destCoords.lng || destCoords.longitude) || -17.4677
+                        latitude: parseFloat(destCoords.lat || destCoords.latitude),
+                        longitude: parseFloat(destCoords.lng || destCoords.longitude)
                     }
                 }
             };
@@ -354,13 +360,13 @@ router.get('/search/:searchId/status', async (req, res) => {
                 const driverData = driverDetailsResult.rows[0] || {};
                 
                 // Calculer l'ETA approximatif (distance / vitesse moyenne 30km/h en ville)
-                const originCoords = { 
-                    lat: parseFloat(searchData.origin?.location?.lat || searchData.origin?.location?.latitude) || 14.7167, 
-                    lng: parseFloat(searchData.origin?.location?.lng || searchData.origin?.location?.longitude) || -17.4677 
+                const originCoords = {
+                    lat: parseFloat(searchData.origin?.location?.lat || searchData.origin?.location?.latitude),
+                    lng: parseFloat(searchData.origin?.location?.lng || searchData.origin?.location?.longitude)
                 };
-                const driverCoords = { 
-                    lat: parseFloat(driverData.latitude) || 14.7167, 
-                    lng: parseFloat(driverData.longitude) || -17.4677 
+                const driverCoords = {
+                    lat: parseFloat(driverData.latitude),
+                    lng: parseFloat(driverData.longitude)
                 };
                 const estimatedDistance = calculateDistance(originCoords, driverCoords);
                 const estimatedETA = Math.max(1, Math.round(estimatedDistance / 30 * 60)); // minutes
@@ -382,8 +388,8 @@ router.get('/search/:searchId/status', async (req, res) => {
                         licensePlate: driverData.plaque_immatriculation || 'DK-0000-XX'
                     },
                     location: {
-                        latitude: parseFloat(driverData.latitude) || 14.7167,
-                        longitude: parseFloat(driverData.longitude) || -17.4677
+                        latitude: parseFloat(driverData.latitude),
+                        longitude: parseFloat(driverData.longitude)
                     }
                 };
                 
@@ -413,8 +419,8 @@ router.get('/search/:searchId/status', async (req, res) => {
                         licensePlate: 'DK-0000-XX'
                     },
                     location: {
-                        latitude: 14.7167,
-                        longitude: -17.4677
+                        latitude: null,
+                        longitude: null
                     }
                 };
             }

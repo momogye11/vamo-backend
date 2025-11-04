@@ -345,10 +345,18 @@ router.get('/:id/history', async (req, res) => {
 router.get('/:id/profile', async (req, res) => {
     const { id } = req.params;
 
+    // Validate ID
+    if (!id || id === 'null' || id === 'undefined' || isNaN(parseInt(id))) {
+        return res.status(400).json({
+            success: false,
+            error: 'Invalid driver ID provided'
+        });
+    }
+
     try {
         // First get chauffeur basic info
         const result = await db.query(`
-            SELECT 
+            SELECT
                 id_chauffeur,
                 nom,
                 prenom,
@@ -363,7 +371,7 @@ router.get('/:id/profile', async (req, res) => {
                 disponibilite
             FROM Chauffeur
             WHERE id_chauffeur = $1
-        `, [id]);
+        `, [parseInt(id)]);
         
         if (result.rowCount === 0) {
             return res.status(404).json({

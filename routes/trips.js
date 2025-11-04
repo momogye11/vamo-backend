@@ -190,7 +190,7 @@ router.post('/accept', async (req, res) => {
 
         // 🚀 Récupérer les informations complètes du chauffeur
         const driverInfo = await db.query(`
-            SELECT 
+            SELECT
                 c.id_chauffeur,
                 c.nom as chauffeur_nom,
                 c.prenom as chauffeur_prenom,
@@ -206,6 +206,27 @@ router.post('/accept', async (req, res) => {
         let driverData = null;
         if (driverInfo.rowCount > 0) {
             const driver = driverInfo.rows[0];
+
+            // ✅ Récupérer la position actuelle du chauffeur
+            const positionResult = await db.query(`
+                SELECT latitude, longitude, timestamp
+                FROM PositionChauffeur
+                WHERE id_chauffeur = $1
+                ORDER BY timestamp DESC
+                LIMIT 1
+            `, [driverId]);
+
+            let currentPosition = null;
+            if (positionResult.rowCount > 0) {
+                const pos = positionResult.rows[0];
+                currentPosition = {
+                    latitude: parseFloat(pos.latitude),
+                    longitude: parseFloat(pos.longitude),
+                    timestamp: pos.timestamp
+                };
+                console.log('📍 Driver current position:', currentPosition);
+            }
+
             driverData = {
                 id: driver.id_chauffeur,
                 name: `${driver.chauffeur_prenom} ${driver.chauffeur_nom}`,
@@ -213,6 +234,7 @@ router.post('/accept', async (req, res) => {
                 lastName: driver.chauffeur_nom,
                 phone: driver.chauffeur_telephone,
                 photo: driver.chauffeur_photo,
+                currentPosition: currentPosition, // ✅ AJOUTÉ
                 vehicle: {
                     brand: driver.marque_vehicule || 'Véhicule',
                     plate: driver.plaque_immatriculation || 'Non spécifiée',

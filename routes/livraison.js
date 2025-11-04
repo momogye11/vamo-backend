@@ -344,17 +344,17 @@ router.get('/search/:searchId/status', async (req, res) => {
             const driverData = driverDetailsResult.rows[0] || {};
             
             // Calculer l'ETA approximatif (distance / vitesse moyenne 25km/h en ville pour moto)
-            const originCoords = { 
-                lat: parseFloat(delivery.latitude_depart) || 14.7167, 
-                lng: parseFloat(delivery.longitude_depart) || -17.4677 
+            const originCoords = {
+                lat: parseFloat(delivery.latitude_depart),
+                lng: parseFloat(delivery.longitude_depart)
             };
-            const driverCoords = { 
-                lat: parseFloat(driverData.latitude) || 14.7167, 
-                lng: parseFloat(driverData.longitude) || -17.4677 
+            const driverCoords = {
+                lat: parseFloat(driverData.latitude),
+                lng: parseFloat(driverData.longitude)
             };
             const estimatedDistance = calculateDistance(originCoords, driverCoords);
             const estimatedETA = Math.max(1, Math.round(estimatedDistance / 25 * 60)); // minutes
-            
+
             driver = {
                 id: driverData.id_livreur,
                 name: `${driverData.prenom || 'Livreur'} ${driverData.nom || ''}`.trim(),
@@ -369,8 +369,8 @@ router.get('/search/:searchId/status', async (req, res) => {
                     make: 'Moto' // Temporaire: marque_vehicule est déjà utilisée
                 },
                 location: {
-                    latitude: parseFloat(driverData.latitude) || 14.7167,
-                    longitude: parseFloat(driverData.longitude) || -17.4677
+                    latitude: parseFloat(driverData.latitude),
+                    longitude: parseFloat(driverData.longitude)
                 }
             };
         } else if (delivery.etat_livraison === 'annulee') {
