@@ -209,10 +209,10 @@ router.post('/accept', async (req, res) => {
 
             // ✅ Récupérer la position actuelle du chauffeur
             const positionResult = await db.query(`
-                SELECT latitude, longitude, timestamp
+                SELECT latitude, longitude, derniere_maj
                 FROM PositionChauffeur
                 WHERE id_chauffeur = $1
-                ORDER BY timestamp DESC
+                ORDER BY derniere_maj DESC
                 LIMIT 1
             `, [driverId]);
 
@@ -222,7 +222,7 @@ router.post('/accept', async (req, res) => {
                 currentPosition = {
                     latitude: parseFloat(pos.latitude),
                     longitude: parseFloat(pos.longitude),
-                    timestamp: pos.timestamp
+                    timestamp: pos.derniere_maj
                 };
                 console.log('📍 Driver current position:', currentPosition);
             }
