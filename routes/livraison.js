@@ -30,7 +30,8 @@ router.post('/search', async (req, res) => {
         routeDuration,
         colisSize,
         description,
-        instructions
+        instructions,
+        intermediateStops
     } = req.body;
     
     try {
@@ -196,7 +197,28 @@ router.post('/search', async (req, res) => {
         
         const deliveryId = deliveryResult.rows[0].id_livraison;
         const searchId = `delivery_search_${deliveryId}_${Date.now()}`;
-        
+
+        // 🚀 INSÉRER LES ARRÊTS INTERMÉDIAIRES si présents
+        if (intermediateStops && Array.isArray(intermediateStops) && intermediateStops.length > 0) {
+            console.log(`📍 Inserting ${intermediateStops.length} intermediate stops for delivery ${deliveryId}`);
+
+            for (let i = 0; i < intermediateStops.length; i++) {
+                const stop = intermediateStops[i];
+                await pool.query(`
+                    INSERT INTO arrets_intermediaires_livraison (id_livraison, adresse, latitude, longitude, ordre_arret)
+                    VALUES ($1, $2, $3, $4, $5)
+                `, [
+                    deliveryId,
+                    stop.description || stop.address || `Arrêt ${i + 1}`,
+                    parseFloat(stop.latitude),
+                    parseFloat(stop.longitude),
+                    i + 1
+                ]);
+            }
+
+            console.log(`✅ Successfully inserted ${intermediateStops.length} intermediate stops`);
+        }
+
         // Store search session data
         activeDeliverySearches.set(searchId, {
             deliveryId: deliveryId,
@@ -208,7 +230,7 @@ router.post('/search', async (req, res) => {
             paymentMethod: paymentMethod,
             deliveryType: deliveryType
         });
-        
+
         await pool.query('COMMIT');
         
         console.log(`✅ Delivery search started: ${searchId} (Delivery ID: ${deliveryId})`);
@@ -216,17 +238,34 @@ router.post('/search', async (req, res) => {
         // 🚀 BROADCAST À TOUS LES LIVREURS DISPONIBLES
         try {
             console.log('📡 Broadcasting new delivery to all available delivery drivers...');
-            
+
             // Récupérer tous les livreurs disponibles
             const availableDrivers = await pool.query(`
-                SELECT id_livreur, nom, prenom 
-                FROM Livreur 
-                WHERE disponibilite = true 
+                SELECT id_livreur, nom, prenom
+                FROM Livreur
+                WHERE disponibilite = true
                 AND statut_validation = 'approuve'
             `);
-            
+
             console.log(`📊 Found ${availableDrivers.rowCount} available delivery drivers to notify`);
-            
+
+            // 🚀 RÉCUPÉRER LES ARRÊTS INTERMÉDIAIRES pour la notification
+            const stopsForNotification = await pool.query(`
+                SELECT adresse, latitude, longitude, ordre_arret
+                FROM arrets_intermediaires_livraison
+                WHERE id_livraison = $1
+                ORDER BY ordre_arret ASC
+            `, [deliveryId]);
+
+            const formattedStops = stopsForNotification.rows.map(stop => ({
+                description: stop.adresse,
+                address: stop.adresse,
+                latitude: parseFloat(stop.latitude),
+                longitude: parseFloat(stop.longitude)
+            }));
+
+            console.log(`📍 Found ${formattedStops.length} intermediate stops to include in notification`);
+
             // Préparer les données de la livraison pour la notification
             const deliveryNotification = {
                 type: 'new_delivery',
@@ -240,6 +279,7 @@ router.post('/search', async (req, res) => {
                     paymentMethod: dbPaymentMethod,
                     colisSize: colisSize || 'M',
                     deliveryType: deliveryType,
+                    intermediateStops: formattedStops, // ✅ AJOUTER LES ARRÊTS
                     pickupCoords: {
                         latitude: parseFloat(originCoords.lat || originCoords.latitude),
                         longitude: parseFloat(originCoords.lng || originCoords.longitude)
