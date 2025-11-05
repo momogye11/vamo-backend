@@ -682,7 +682,7 @@ router.post('/accept', async (req, res) => {
                 SELECT latitude, longitude
                 FROM PositionLivreur
                 WHERE id_livreur = $1
-                ORDER BY heure_mise_a_jour DESC
+                ORDER BY derniere_maj DESC
                 LIMIT 1
             `, [driverId]);
 
