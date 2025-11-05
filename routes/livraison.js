@@ -667,8 +667,8 @@ router.post('/accept', async (req, res) => {
                 l.prenom as livreur_prenom,
                 l.telephone as livreur_telephone,
                 l.photo_selfie as livreur_photo,
-                l.marque_vehicule,
-                l.plaque_immatriculation
+                l.type_vehicule,
+                l.photo_vehicule
             FROM Livreur l
             WHERE l.id_livreur = $1
         `, [driverId]);
@@ -699,8 +699,8 @@ router.post('/accept', async (req, res) => {
 
                 // 🚀 CALCULER L'ETA (temps estimé d'arrivée)
                 // Récupérer les coordonnées du point de départ de la livraison
-                const pickupLat = parseFloat(acceptedDelivery.adresse_depart_latitude);
-                const pickupLng = parseFloat(acceptedDelivery.adresse_depart_longitude);
+                const pickupLat = parseFloat(acceptedDelivery.latitude_depart);
+                const pickupLng = parseFloat(acceptedDelivery.longitude_depart);
 
                 if (currentPosition.latitude && currentPosition.longitude && pickupLat && pickupLng) {
                     // Formule de Haversine pour calculer la distance
@@ -737,8 +737,8 @@ router.post('/accept', async (req, res) => {
                 eta: eta,
                 currentPosition: currentPosition,
                 vehicle: {
-                    brand: driver.marque_vehicule || 'Moto',
-                    plate: driver.plaque_immatriculation || 'Non spécifiée'
+                    type: driver.type_vehicule || 'motorcycle',
+                    photo: driver.photo_vehicule
                 }
             };
             console.log('👤 Driver info with position and ETA:', driverData);
