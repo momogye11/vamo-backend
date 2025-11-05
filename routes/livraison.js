@@ -342,18 +342,30 @@ router.get('/search/:searchId/status', async (req, res) => {
             `, [delivery.id_livreur]);
             
             const driverData = driverDetailsResult.rows[0] || {};
-            
+
             // Calculer l'ETA approximatif (distance / vitesse moyenne 25km/h en ville pour moto)
-            const originCoords = {
-                lat: parseFloat(delivery.latitude_depart),
-                lng: parseFloat(delivery.longitude_depart)
-            };
-            const driverCoords = {
-                lat: parseFloat(driverData.latitude),
-                lng: parseFloat(driverData.longitude)
-            };
-            const estimatedDistance = calculateDistance(originCoords, driverCoords);
-            const estimatedETA = Math.max(1, Math.round(estimatedDistance / 25 * 60)); // minutes
+            let estimatedETA = 10; // Valeur par défaut
+            let driverLatitude = null;
+            let driverLongitude = null;
+
+            if (driverData.latitude && driverData.longitude) {
+                driverLatitude = parseFloat(driverData.latitude);
+                driverLongitude = parseFloat(driverData.longitude);
+
+                const originCoords = {
+                    lat: parseFloat(delivery.latitude_depart),
+                    lng: parseFloat(delivery.longitude_depart)
+                };
+                const driverCoords = {
+                    lat: driverLatitude,
+                    lng: driverLongitude
+                };
+
+                if (!isNaN(originCoords.lat) && !isNaN(originCoords.lng) && !isNaN(driverCoords.lat) && !isNaN(driverCoords.lng)) {
+                    const estimatedDistance = calculateDistance(originCoords, driverCoords);
+                    estimatedETA = Math.max(1, Math.round(estimatedDistance / 25 * 60)); // minutes
+                }
+            }
 
             driver = {
                 id: driverData.id_livreur,
@@ -369,8 +381,8 @@ router.get('/search/:searchId/status', async (req, res) => {
                     make: 'Moto' // Temporaire: marque_vehicule est déjà utilisée
                 },
                 location: {
-                    latitude: parseFloat(driverData.latitude),
-                    longitude: parseFloat(driverData.longitude)
+                    latitude: driverLatitude,
+                    longitude: driverLongitude
                 }
             };
         } else if (delivery.etat_livraison === 'annulee') {
