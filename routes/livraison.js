@@ -637,11 +637,135 @@ router.post('/accept', async (req, res) => {
         `, [driverId]);
         
         await pool.query('COMMIT');
-        
+
         const acceptedDelivery = updateResult.rows[0];
-        
+
         console.log(`✅ Delivery ${deliveryId} accepted by livreur ${driver.prenom} ${driver.nom} (ID: ${driverId})`);
-        
+
+        // 🚀 RÉCUPÉRER LES ARRÊTS INTERMÉDIAIRES
+        const stopsResult = await pool.query(`
+            SELECT adresse, latitude, longitude, ordre_arret
+            FROM arrets_intermediaires_livraison
+            WHERE id_livraison = $1
+            ORDER BY ordre_arret ASC
+        `, [deliveryId]);
+
+        const intermediateStops = stopsResult.rows.map(stop => ({
+            description: stop.adresse,
+            address: stop.adresse,
+            latitude: parseFloat(stop.latitude),
+            longitude: parseFloat(stop.longitude)
+        }));
+
+        console.log(`📍 Found ${intermediateStops.length} intermediate stops for delivery ${deliveryId}`);
+
+        // 🚀 RÉCUPÉRER LES INFORMATIONS COMPLÈTES DU LIVREUR
+        const driverInfo = await pool.query(`
+            SELECT
+                l.id_livreur,
+                l.nom as livreur_nom,
+                l.prenom as livreur_prenom,
+                l.telephone as livreur_telephone,
+                l.photo_selfie as livreur_photo,
+                l.marque_vehicule,
+                l.plaque_immatriculation
+            FROM Livreur l
+            WHERE l.id_livreur = $1
+        `, [driverId]);
+
+        let driverData = null;
+        if (driverInfo.rowCount > 0) {
+            const driver = driverInfo.rows[0];
+
+            // 🚀 RÉCUPÉRER LA POSITION ACTUELLE DU LIVREUR
+            const positionResult = await pool.query(`
+                SELECT latitude, longitude
+                FROM PositionLivreur
+                WHERE id_livreur = $1
+                ORDER BY heure_mise_a_jour DESC
+                LIMIT 1
+            `, [driverId]);
+
+            let currentPosition = null;
+            let eta = null;
+
+            if (positionResult.rowCount > 0) {
+                const pos = positionResult.rows[0];
+                currentPosition = {
+                    latitude: parseFloat(pos.latitude),
+                    longitude: parseFloat(pos.longitude)
+                };
+                console.log('📍 Driver position retrieved:', currentPosition);
+
+                // 🚀 CALCULER L'ETA (temps estimé d'arrivée)
+                // Récupérer les coordonnées du point de départ de la livraison
+                const pickupLat = parseFloat(acceptedDelivery.adresse_depart_latitude);
+                const pickupLng = parseFloat(acceptedDelivery.adresse_depart_longitude);
+
+                if (currentPosition.latitude && currentPosition.longitude && pickupLat && pickupLng) {
+                    // Formule de Haversine pour calculer la distance
+                    const R = 6371; // Rayon de la Terre en km
+                    const dLat = (pickupLat - currentPosition.latitude) * Math.PI / 180;
+                    const dLon = (pickupLng - currentPosition.longitude) * Math.PI / 180;
+                    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                              Math.cos(currentPosition.latitude * Math.PI / 180) *
+                              Math.cos(pickupLat * Math.PI / 180) *
+                              Math.sin(dLon/2) * Math.sin(dLon/2);
+                    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+                    const distance = R * c; // Distance en km
+
+                    // Vitesse moyenne en ville : 30 km/h pour une moto
+                    const averageSpeed = 30;
+                    eta = Math.round((distance / averageSpeed) * 60); // en minutes
+                    console.log(`⏱️ ETA calculated: ${eta} min (distance: ${distance.toFixed(2)} km)`);
+                } else {
+                    console.warn('⚠️ Missing coordinates for ETA calculation');
+                    eta = 10; // Valeur par défaut
+                }
+            } else {
+                console.warn('⚠️ No position found for driver, using defaults');
+                eta = 10; // Valeur par défaut
+            }
+
+            driverData = {
+                id: driver.id_livreur,
+                name: `${driver.livreur_prenom} ${driver.livreur_nom}`,
+                firstName: driver.livreur_prenom,
+                lastName: driver.livreur_nom,
+                phone: driver.livreur_telephone,
+                photo: driver.livreur_photo,
+                eta: eta,
+                currentPosition: currentPosition,
+                vehicle: {
+                    brand: driver.marque_vehicule || 'Moto',
+                    plate: driver.plaque_immatriculation || 'Non spécifiée'
+                }
+            };
+            console.log('👤 Driver info with position and ETA:', driverData);
+        }
+
+        // 🚀 NOTIFICATION WEBSOCKET AU CLIENT
+        try {
+            const { notifyClient } = require('./websocket');
+
+            const notification = {
+                type: 'delivery_accepted',
+                data: {
+                    deliveryId: deliveryId,
+                    message: 'Votre livreur a accepté la livraison',
+                    driver: driverData,
+                    timestamp: new Date().toISOString()
+                }
+            };
+
+            // Notifier le client (si connecté via WebSocket)
+            await notifyClient(acceptedDelivery.id_client, notification);
+            console.log(`✅ Client ${acceptedDelivery.id_client} notified of delivery acceptance`);
+
+        } catch (wsError) {
+            console.error('⚠️ WebSocket notification failed (delivery still accepted):', wsError.message);
+        }
+
         res.json({
             success: true,
             message: 'Delivery accepted successfully',
@@ -649,6 +773,7 @@ router.post('/accept', async (req, res) => {
                 id: acceptedDelivery.id_livraison,
                 origin: acceptedDelivery.adresse_depart,
                 destination: acceptedDelivery.adresse_arrivee,
+                intermediateStops: intermediateStops,
                 status: acceptedDelivery.etat_livraison,
                 price: acceptedDelivery.prix,
                 colisSize: acceptedDelivery.taille_colis,
@@ -662,7 +787,8 @@ router.post('/accept', async (req, res) => {
                         longitude: parseFloat(acceptedDelivery.longitude_arrivee)
                     }
                 }
-            }
+            },
+            driver: driverData
         });
         
     } catch (err) {
