@@ -1245,7 +1245,32 @@ router.post('/continue-from-stop', async (req, res) => {
 
         // 🚀 NOTIFICATION WEBSOCKET AU CLIENT
         try {
-            const { notifyClient } = require('./websocket');
+            const { notifyClient, getDriverLastLocation } = require('./websocket');
+
+            // 🎯 Récupérer la position GPS actuelle du chauffeur
+            let driverLocation = getDriverLastLocation(driverId);
+
+            // Fallback: récupérer depuis la base de données si pas disponible en mémoire
+            if (!driverLocation) {
+                console.log('📍 Trying to get driver location from database...');
+                const locationResult = await db.query(`
+                    SELECT latitude, longitude, derniere_maj
+                    FROM PositionChauffeur
+                    WHERE id_chauffeur = $1
+                `, [driverId]);
+
+                if (locationResult.rowCount > 0) {
+                    const loc = locationResult.rows[0];
+                    driverLocation = {
+                        latitude: parseFloat(loc.latitude),
+                        longitude: parseFloat(loc.longitude),
+                        timestamp: loc.derniere_maj
+                    };
+                    console.log('✅ Driver location retrieved from database:', driverLocation);
+                } else {
+                    console.warn('⚠️ No driver location available for continue-from-stop');
+                }
+            }
 
             let notification;
 
@@ -1262,11 +1287,15 @@ router.post('/continue-from-stop', async (req, res) => {
                             latitude: parseFloat(nextStop.latitude),
                             longitude: parseFloat(nextStop.longitude)
                         },
+                        driverLocation: driverLocation, // 🆕 Position GPS actuelle du chauffeur
                         message: `Votre chauffeur se dirige vers ${nextStop.adresse || `l'arrêt ${currentStopIndex + 2}`}`,
                         timestamp: new Date().toISOString()
                     }
                 };
                 console.log(`🛣️ Continuing to next stop: ${nextStop.adresse}`);
+                if (driverLocation) {
+                    console.log(`📍 Driver current location included:`, driverLocation);
+                }
             } else {
                 // Dernier arrêt, direction destination finale
                 notification = {
@@ -1274,11 +1303,15 @@ router.post('/continue-from-stop', async (req, res) => {
                     data: {
                         tripId: tripId,
                         goingToDestination: true,
+                        driverLocation: driverLocation, // 🆕 Position GPS actuelle du chauffeur
                         message: `Votre chauffeur se dirige vers votre destination finale: ${trip.adresse_arrivee}`,
                         timestamp: new Date().toISOString()
                     }
                 };
                 console.log(`🛣️ Continuing to final destination: ${trip.adresse_arrivee}`);
+                if (driverLocation) {
+                    console.log(`📍 Driver current location included:`, driverLocation);
+                }
             }
 
             await notifyClient(trip.id_client, notification);
