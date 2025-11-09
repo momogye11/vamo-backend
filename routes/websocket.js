@@ -931,6 +931,23 @@ setInterval(() => {
     }
 }, 2 * 60 * 1000);
 
+// 🎯 Fonction pour obtenir la dernière position GPS d'un chauffeur
+function getDriverLastLocation(driverId) {
+    const driverData = connectedDrivers.get(driverId.toString());
+
+    if (driverData && driverData.lastLocation) {
+        console.log(`📍 Driver ${driverId} last location from WebSocket:`, driverData.lastLocation);
+        return {
+            latitude: driverData.lastLocation.latitude,
+            longitude: driverData.lastLocation.longitude,
+            timestamp: driverData.lastLocation.timestamp
+        };
+    }
+
+    console.log(`⚠️ No WebSocket location available for driver ${driverId}`);
+    return null;
+}
+
 // Export des fonctions
 module.exports = {
     router,
@@ -944,6 +961,7 @@ module.exports = {
     // 📍 Nouvelles fonctions pour le GPS temps réel
     setClientFollowingDriver,
     stopClientFollowing,
+    getDriverLastLocation, // 🆕 Fonction pour obtenir la position GPS d'un chauffeur
     getConnectedDriversCount: () => connectedDrivers.size,
     getConnectionStatus: () => {
         const connections = [];

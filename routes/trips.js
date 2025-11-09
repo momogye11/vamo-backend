@@ -995,7 +995,7 @@ router.post('/start-trip', async (req, res) => {
 
         // 🚀 NOTIFICATION WEBSOCKET AU CLIENT
         try {
-            const { notifyClient } = require('./websocket');
+            const { notifyClient, getDriverLastLocation } = require('./websocket');
 
             // ✅ Vérifier s'il y a des arrêts intermédiaires
             const intermediateStopsResult = await db.query(`
@@ -1005,6 +1005,31 @@ router.post('/start-trip', async (req, res) => {
             `, [tripId]);
 
             const hasIntermediateStops = intermediateStopsResult.rowCount > 0;
+
+            // 🎯 Récupérer la position GPS actuelle du chauffeur
+            let driverLocation = getDriverLastLocation(driverId);
+
+            // Fallback: récupérer depuis la base de données si pas disponible en mémoire
+            if (!driverLocation) {
+                console.log('📍 Trying to get driver location from database...');
+                const locationResult = await db.query(`
+                    SELECT latitude, longitude, derniere_maj
+                    FROM PositionChauffeur
+                    WHERE id_chauffeur = $1
+                `, [driverId]);
+
+                if (locationResult.rowCount > 0) {
+                    const loc = locationResult.rows[0];
+                    driverLocation = {
+                        latitude: parseFloat(loc.latitude),
+                        longitude: parseFloat(loc.longitude),
+                        timestamp: loc.derniere_maj
+                    };
+                    console.log('✅ Driver location retrieved from database:', driverLocation);
+                } else {
+                    console.warn('⚠️ No driver location available (neither WebSocket nor DB)');
+                }
+            }
 
             let notification;
 
@@ -1021,12 +1046,16 @@ router.post('/start-trip', async (req, res) => {
                             latitude: parseFloat(firstStop.latitude),
                             longitude: parseFloat(firstStop.longitude)
                         },
+                        driverLocation: driverLocation, // 🆕 Position GPS actuelle du chauffeur
                         message: `Votre voyage a commencé ! Direction: ${firstStop.adresse || `Arrêt ${firstStop.ordre_arret}`}`,
                         driver: driverData,
                         timestamp: new Date().toISOString()
                     }
                 };
                 console.log(`🛣️ Trip ${tripId} started with intermediate stops - heading to first stop:`, firstStop.adresse);
+                if (driverLocation) {
+                    console.log(`📍 Driver current location included in notification:`, driverLocation);
+                }
             } else {
                 // Pas d'arrêts intermédiaires, notification normale
                 notification = {
@@ -1353,7 +1382,7 @@ router.post('/complete', async (req, res) => {
         // Récupérer les informations du chauffeur pour la notification
         const driverInfo = await db.query(`
             SELECT nom, prenom, telephone, marque_vehicule, plaque_immatriculation
-            FROM Chauffeur 
+            FROM Chauffeur
             WHERE id_chauffeur = $1
         `, [driverId]);
 
@@ -1363,6 +1392,8 @@ router.post('/complete', async (req, res) => {
             driverData = {
                 id: driverId,
                 name: `${driver.prenom} ${driver.nom}`,
+                firstName: driver.prenom, // ✅ AJOUTÉ pour compatibilité frontend
+                lastName: driver.nom,     // ✅ AJOUTÉ pour compatibilité frontend
                 phone: driver.telephone,
                 vehicle: {
                     brand: driver.marque_vehicule || 'Véhicule',
@@ -1402,7 +1433,7 @@ router.post('/complete', async (req, res) => {
                     // Données pour la page de notation
                     tripData: {
                         id: tripId,
-                        driverName: driverData ? `${driverData.prenom} ${driverData.nom}` : 'Votre chauffeur',
+                        driverName: driverData ? driverData.name : 'Votre chauffeur', // ✅ CORRECTION: Utiliser driverData.name au lieu de prenom/nom
                         finalPrice: finalPrice,
                         distance: trip.distance_km + ' km',
                         duration: trip.duree_min + ' min',
