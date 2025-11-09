@@ -1062,6 +1062,7 @@ router.post('/start-trip', async (req, res) => {
                     type: 'trip_started',
                     data: {
                         tripId: tripId,
+                        driverLocation: driverLocation, // 🆕 Position GPS actuelle du chauffeur
                         message: 'Votre voyage a commencé ! Direction: ' + (trip.adresse_arrivee || 'votre destination'),
                         driver: driverData,
                         destination: trip.adresse_arrivee,
@@ -1069,6 +1070,9 @@ router.post('/start-trip', async (req, res) => {
                     }
                 };
                 console.log(`🛣️ Trip ${tripId} started without intermediate stops`);
+                if (driverLocation) {
+                    console.log(`📍 Driver current location included in notification:`, driverLocation);
+                }
             }
 
             // Notifier le client (si connecté via WebSocket)
