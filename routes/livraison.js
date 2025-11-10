@@ -700,6 +700,31 @@ router.post('/accept', async (req, res) => {
 
         console.log(`✅ Delivery ${deliveryId} accepted by livreur ${driver.prenom} ${driver.nom} (ID: ${driverId})`);
 
+        // 🔍 RÉCUPÉRER LES INFOS DU CLIENT (EXPÉDITEUR)
+        let clientData = null;
+        if (acceptedDelivery.id_client) {
+            const clientResult = await pool.query(`
+                SELECT id_client, nom, prenom, telephone, adresse
+                FROM Client
+                WHERE id_client = $1
+            `, [acceptedDelivery.id_client]);
+
+            if (clientResult.rowCount > 0) {
+                const client = clientResult.rows[0];
+                clientData = {
+                    id: client.id_client,
+                    nom: `${client.prenom || ''} ${client.nom || ''}`.trim(),
+                    prenom: client.prenom,
+                    lastName: client.nom,
+                    telephone: client.telephone,
+                    adresse: client.adresse
+                };
+                console.log('✅ Client info retrieved:', clientData);
+            } else {
+                console.warn('⚠️ Client not found for id:', acceptedDelivery.id_client);
+            }
+        }
+
         // 🚀 RÉCUPÉRER LES ARRÊTS INTERMÉDIAIRES
         const stopsResult = await pool.query(`
             SELECT adresse, latitude, longitude, ordre_arret
@@ -841,6 +866,11 @@ router.post('/accept', async (req, res) => {
                 recipientName: acceptedDelivery.destinataire_nom,
                 recipientPhone: acceptedDelivery.destinataire_telephone,
                 packageSize: acceptedDelivery.taille_colis, // Alias pour compatibilité
+                // ✅ Informations du client (expéditeur)
+                clientInfo: clientData,
+                client_name: clientData?.nom || '',
+                client_phone: clientData?.telephone || '',
+                client_address: clientData?.adresse || '',
                 coordinates: {
                     origin: {
                         latitude: parseFloat(acceptedDelivery.latitude_depart),
