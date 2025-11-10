@@ -31,6 +31,8 @@ router.post('/search', async (req, res) => {
         colisSize,
         description,
         instructions,
+        recipientName,      // ✅ Nom du destinataire
+        recipientPhone,     // ✅ Téléphone du destinataire
         intermediateStops
     } = req.body;
     
@@ -174,8 +176,10 @@ router.post('/search', async (req, res) => {
                 duree_estimee_min,
                 mode_paiement,
                 description_colis,
+                destinataire_nom,
+                destinataire_telephone,
                 date_heure_demande
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'en_attente', $12, $13, $14, $15, CURRENT_TIMESTAMP)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'en_attente', $12, $13, $14, $15, $16, $17, CURRENT_TIMESTAMP)
             RETURNING id_livraison
         `, [
             clientId,
@@ -192,7 +196,9 @@ router.post('/search', async (req, res) => {
             cleanDistance,
             cleanDuration,
             dbPaymentMethod,
-            description || 'Colis à livrer'
+            description || 'Colis à livrer',
+            recipientName || '',      // ✅ Nom du destinataire
+            recipientPhone || ''       // ✅ Téléphone du destinataire
         ]);
         
         const deliveryId = deliveryResult.rows[0].id_livraison;
@@ -829,6 +835,12 @@ router.post('/accept', async (req, res) => {
                 status: acceptedDelivery.etat_livraison,
                 price: acceptedDelivery.prix,
                 colisSize: acceptedDelivery.taille_colis,
+                // ✅ Informations du colis
+                description: acceptedDelivery.description_colis,
+                instructions: acceptedDelivery.instructions,
+                recipientName: acceptedDelivery.destinataire_nom,
+                recipientPhone: acceptedDelivery.destinataire_telephone,
+                packageSize: acceptedDelivery.taille_colis, // Alias pour compatibilité
                 coordinates: {
                     origin: {
                         latitude: parseFloat(acceptedDelivery.latitude_depart),
