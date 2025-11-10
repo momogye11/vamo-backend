@@ -704,7 +704,7 @@ router.post('/accept', async (req, res) => {
         let clientData = null;
         if (acceptedDelivery.id_client) {
             const clientResult = await pool.query(`
-                SELECT id_client, nom, prenom, telephone, adresse
+                SELECT id_client, nom, prenom, telephone
                 FROM Client
                 WHERE id_client = $1
             `, [acceptedDelivery.id_client]);
@@ -716,8 +716,7 @@ router.post('/accept', async (req, res) => {
                     nom: `${client.prenom || ''} ${client.nom || ''}`.trim(),
                     prenom: client.prenom,
                     lastName: client.nom,
-                    telephone: client.telephone,
-                    adresse: client.adresse
+                    telephone: client.telephone
                 };
                 console.log('✅ Client info retrieved:', clientData);
             } else {
@@ -870,7 +869,6 @@ router.post('/accept', async (req, res) => {
                 clientInfo: clientData,
                 client_name: clientData?.nom || '',
                 client_phone: clientData?.telephone || '',
-                client_address: clientData?.adresse || '',
                 coordinates: {
                     origin: {
                         latitude: parseFloat(acceptedDelivery.latitude_depart),
