@@ -848,6 +848,24 @@ router.post('/accept', async (req, res) => {
             console.error('⚠️ WebSocket notification failed (delivery still accepted):', wsError.message);
         }
 
+        // 🚀 NOTIFICATION WEBSOCKET AUX AUTRES LIVREURS
+        try {
+            console.log('📢 Notifying other delivery drivers that delivery was taken via WebSocket...');
+
+            // Récupérer les livreurs encore connectés
+            const { getConnectionStatus, notifyDeliveryTaken } = require('./websocket');
+            const connectionStatus = getConnectionStatus();
+
+            if (connectionStatus.totalConnections > 0) {
+                console.log(`📊 ${connectionStatus.totalConnections} drivers/delivery drivers connected via WebSocket, notifying them`);
+
+                // Notifier via WebSocket que cette livraison est prise (pour fermer les modals)
+                notifyDeliveryTaken(deliveryId, driverId);
+            }
+        } catch (notifyError) {
+            console.error('⚠️ Error notifying other delivery drivers via WebSocket (delivery still accepted):', notifyError.message);
+        }
+
         res.json({
             success: true,
             message: 'Delivery accepted successfully',

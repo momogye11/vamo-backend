@@ -567,6 +567,42 @@ function notifyTripTaken(tripId, takenByDriverId) {
     console.log(`📊 Trip taken notification sent to ${notifiedCount} drivers`);
 }
 
+// Fonction pour notifier qu'une livraison a été prise
+function notifyDeliveryTaken(deliveryId, takenByDriverId) {
+    console.log(`📢 Broadcasting delivery taken: ${deliveryId} by delivery driver ${takenByDriverId}`);
+
+    const notification = {
+        type: 'delivery-notification',
+        data: {
+            notificationType: 'delivery_taken',
+            deliveryId: deliveryId,
+            takenBy: takenByDriverId,
+            message: 'Livraison prise par un autre livreur',
+            timestamp: new Date().toISOString()
+        }
+    };
+
+    // Envoyer à tous les livreurs connectés (sauf celui qui a pris)
+    let notifiedCount = 0;
+    for (const [driverId, driverData] of connectedDeliveryDrivers.entries()) {
+        if (driverId !== takenByDriverId.toString()) {
+            try {
+                if (driverData.ws.readyState === WebSocket.OPEN) {
+                    driverData.ws.send(JSON.stringify(notification));
+                    notifiedCount++;
+                } else {
+                    connectedDeliveryDrivers.delete(driverId);
+                }
+            } catch (error) {
+                console.error(`❌ Error notifying delivery driver ${driverId}:`, error.message);
+                connectedDeliveryDrivers.delete(driverId);
+            }
+        }
+    }
+
+    console.log(`📊 Delivery taken notification sent to ${notifiedCount} delivery drivers`);
+}
+
 // Fonction pour notifier un chauffeur spécifique
 async function notifyDriver(driverId, type, data) {
     console.log(`📡 Notifying driver ${driverId} with type: ${type}`);
@@ -1191,6 +1227,7 @@ module.exports = {
     notifyDriver,
     getWebSocketConnections,
     notifyTripTaken,
+    notifyDeliveryTaken,
     // 📍 Nouvelles fonctions pour le GPS temps réel
     setClientFollowingDriver,
     stopClientFollowing,
