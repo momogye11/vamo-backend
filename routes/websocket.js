@@ -8,6 +8,8 @@ const connectedDrivers = new Map();
 const connectedDeliveryDrivers = new Map();
 // Store pour les connexions WebSocket des clients
 const connectedClients = new Map();
+// Store pour les rooms de chat (conversations actives)
+const chatRooms = new Map(); // tripId -> Set of websocket connections
 
 /**
  * 🚀 WEBSOCKET avec bibliothèque 'ws' (compatible React Native)
@@ -60,6 +62,18 @@ function initializeWebSocket(server) {
                 if (driverData) {
                     console.log(`👋 Driver ${driverData.driverName} (ID: ${ws.driverId}) disconnected`);
                     connectedDrivers.delete(ws.driverId.toString());
+                }
+            }
+
+            // Nettoyer les chat rooms
+            if (ws.chatTripId && chatRooms.has(ws.chatTripId)) {
+                chatRooms.get(ws.chatTripId).delete(ws);
+                console.log(`💬 User removed from chat room ${ws.chatTripId}`);
+
+                // Supprimer la room si vide
+                if (chatRooms.get(ws.chatTripId).size === 0) {
+                    chatRooms.delete(ws.chatTripId);
+                    console.log(`🗑️ Deleted empty chat room ${ws.chatTripId}`);
                 }
             }
 
@@ -161,6 +175,22 @@ function handleWebSocketMessage(ws, message) {
 
         case 'stop-following-driver':
             handleStopFollowingDriver(ws, message);
+            break;
+
+        case 'chat-join-room':
+            handleChatJoinRoom(ws, message);
+            break;
+
+        case 'chat-leave-room':
+            handleChatLeaveRoom(ws, message);
+            break;
+
+        case 'chat-message-send':
+            handleChatMessageSend(ws, message);
+            break;
+
+        case 'chat-typing':
+            handleChatTyping(ws, message);
             break;
 
         default:
@@ -878,6 +908,197 @@ function handleStopFollowingDriver(ws, message) {
             message: 'Failed to stop following driver'
         }));
     }
+}
+
+// 💬 ========================================
+// FONCTIONS DE MESSAGERIE TEMPS RÉEL
+// ========================================
+
+// Rejoindre une room de chat (conversation)
+function handleChatJoinRoom(ws, message) {
+    const { tripId, userId, userType, serviceType } = message.data || {};
+
+    console.log(`💬 User joining chat room:`, { tripId, userId, userType, serviceType });
+
+    if (!tripId || !userId || !userType) {
+        ws.send(JSON.stringify({
+            type: 'error',
+            message: 'tripId, userId, and userType are required'
+        }));
+        return;
+    }
+
+    // Stocker les infos de chat dans la connexion WebSocket
+    ws.chatTripId = tripId;
+    ws.chatUserId = userId;
+    ws.chatUserType = userType;
+    ws.chatServiceType = serviceType || 'course';
+
+    // Créer la room si elle n'existe pas
+    if (!chatRooms.has(tripId)) {
+        chatRooms.set(tripId, new Set());
+        console.log(`💬 Created new chat room: ${tripId}`);
+    }
+
+    // Ajouter cette connexion à la room
+    chatRooms.get(tripId).add(ws);
+    console.log(`✅ User ${userId} (${userType}) joined chat room ${tripId}`);
+    console.log(`📊 Room ${tripId} now has ${chatRooms.get(tripId).size} participants`);
+
+    // Confirmer au client
+    ws.send(JSON.stringify({
+        type: 'chat-joined',
+        data: {
+            tripId,
+            roomSize: chatRooms.get(tripId).size,
+            timestamp: new Date().toISOString()
+        }
+    }));
+}
+
+// Quitter une room de chat
+function handleChatLeaveRoom(ws, message) {
+    const { tripId } = message.data || {};
+    const targetTripId = tripId || ws.chatTripId;
+
+    if (targetTripId && chatRooms.has(targetTripId)) {
+        chatRooms.get(targetTripId).delete(ws);
+        console.log(`👋 User left chat room ${targetTripId}`);
+
+        // Supprimer la room si vide
+        if (chatRooms.get(targetTripId).size === 0) {
+            chatRooms.delete(targetTripId);
+            console.log(`🗑️ Deleted empty chat room ${targetTripId}`);
+        }
+    }
+
+    // Nettoyer les données de chat
+    ws.chatTripId = null;
+    ws.chatUserId = null;
+    ws.chatUserType = null;
+}
+
+// Envoyer un message de chat
+function handleChatMessageSend(ws, message) {
+    const { tripId, senderId, senderType, messageText } = message.data || {};
+
+    console.log(`💬 Chat message received:`, { tripId, senderId, senderType, messageText: messageText?.substring(0, 30) });
+
+    if (!tripId || !senderId || !senderType || !messageText) {
+        ws.send(JSON.stringify({
+            type: 'error',
+            message: 'tripId, senderId, senderType, and messageText are required'
+        }));
+        return;
+    }
+
+    // Broadcaster le message à tous les participants de la room
+    if (chatRooms.has(tripId)) {
+        const messageData = {
+            type: 'chat-message-received',
+            data: {
+                tripId,
+                senderId,
+                senderType,
+                messageText,
+                timestamp: new Date().toISOString()
+            }
+        };
+
+        let notifiedCount = 0;
+        chatRooms.get(tripId).forEach((clientWs) => {
+            // Envoyer à tous SAUF l'expéditeur (il l'a déjà localement)
+            if (clientWs !== ws && clientWs.readyState === WebSocket.OPEN) {
+                try {
+                    clientWs.send(JSON.stringify(messageData));
+                    notifiedCount++;
+                } catch (error) {
+                    console.error(`❌ Error sending message to client:`, error);
+                    chatRooms.get(tripId).delete(clientWs);
+                }
+            }
+        });
+
+        console.log(`📤 Message broadcast to ${notifiedCount} participants in room ${tripId}`);
+
+        // Confirmer à l'expéditeur
+        ws.send(JSON.stringify({
+            type: 'chat-message-sent',
+            data: {
+                tripId,
+                timestamp: new Date().toISOString()
+            }
+        }));
+    } else {
+        console.log(`⚠️ Chat room ${tripId} not found`);
+        ws.send(JSON.stringify({
+            type: 'error',
+            message: 'Chat room not found'
+        }));
+    }
+}
+
+// Indicateur "en train d'écrire"
+function handleChatTyping(ws, message) {
+    const { tripId, userId, userType, isTyping } = message.data || {};
+
+    if (!tripId || !userId || !userType) {
+        return;
+    }
+
+    // Broadcaster l'indicateur aux autres participants
+    if (chatRooms.has(tripId)) {
+        const typingData = {
+            type: 'chat-user-typing',
+            data: {
+                tripId,
+                userId,
+                userType,
+                isTyping,
+                timestamp: new Date().toISOString()
+            }
+        };
+
+        chatRooms.get(tripId).forEach((clientWs) => {
+            // Envoyer à tous SAUF celui qui tape
+            if (clientWs !== ws && clientWs.readyState === WebSocket.OPEN) {
+                try {
+                    clientWs.send(JSON.stringify(typingData));
+                } catch (error) {
+                    console.error(`❌ Error sending typing indicator:`, error);
+                }
+            }
+        });
+    }
+}
+
+// Fonction utilitaire pour notifier un nouveau message via WebSocket
+function notifyNewChatMessage(tripId, messageData) {
+    console.log(`💬 Notifying chat room ${tripId} of new message`);
+
+    if (chatRooms.has(tripId)) {
+        const notification = {
+            type: 'chat-message-received',
+            data: messageData
+        };
+
+        let notifiedCount = 0;
+        chatRooms.get(tripId).forEach((clientWs) => {
+            if (clientWs.readyState === WebSocket.OPEN) {
+                try {
+                    clientWs.send(JSON.stringify(notification));
+                    notifiedCount++;
+                } catch (error) {
+                    console.error(`❌ Error notifying chat participant:`, error);
+                }
+            }
+        });
+
+        console.log(`📤 Notified ${notifiedCount} participants in room ${tripId}`);
+        return notifiedCount;
+    }
+
+    return 0;
 }
 
 // Route de debug pour voir les connexions
