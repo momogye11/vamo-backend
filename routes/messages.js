@@ -228,25 +228,55 @@ router.post('/delivery/send', async (req, res) => {
     }
 });
 
-// Récupérer le nombre de messages non lus
+// Récupérer le nombre de messages non lus (global pour un utilisateur)
 router.get('/unread/:userId/:userType', async (req, res) => {
     try {
         const { userId, userType } = req.params;
-        
+
         const query = `
             SELECT COUNT(*) as unread_count
-            FROM Messages 
+            FROM Messages
             WHERE receiver_id = $1 AND receiver_type = $2 AND is_read = false
         `;
-        
+
         const result = await pool.query(query, [userId, userType]);
-        
+
         res.json({
             success: true,
             unreadCount: parseInt(result.rows[0].unread_count)
         });
     } catch (error) {
         console.error('Erreur lors de la récupération des messages non lus:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Erreur serveur'
+        });
+    }
+});
+
+// Récupérer le nombre de messages non lus pour un trip/delivery spécifique
+router.get('/unread/:userId/:userType/:tripId/:serviceType', async (req, res) => {
+    try {
+        const { userId, userType, tripId, serviceType } = req.params;
+
+        const query = `
+            SELECT COUNT(*) as unread_count
+            FROM Messages
+            WHERE receiver_id = $1
+            AND receiver_type = $2
+            AND trip_id = $3
+            AND service_type = $4
+            AND is_read = false
+        `;
+
+        const result = await pool.query(query, [userId, userType, tripId, serviceType]);
+
+        res.json({
+            success: true,
+            unreadCount: parseInt(result.rows[0].unread_count)
+        });
+    } catch (error) {
+        console.error('Erreur lors de la récupération des messages non lus pour le trip:', error);
         res.status(500).json({
             success: false,
             error: 'Erreur serveur'
