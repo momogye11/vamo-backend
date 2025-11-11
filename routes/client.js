@@ -224,7 +224,7 @@ router.get('/rides/:telephone', async (req, res) => {
 
     // Query for active rides from Course table
     const activeRidesQuery = `
-      SELECT 
+      SELECT
         c.id_course,
         c.adresse_depart,
         c.adresse_arrivee,
@@ -245,6 +245,7 @@ router.get('/rides/:telephone', async (req, res) => {
       LEFT JOIN Paiement p ON c.id_course = p.id_course
       LEFT JOIN Note n ON c.id_course = n.id_course
       WHERE c.id_client = $1
+      AND c.etat_course IN ('terminee', 'annulee')
     `;
 
     // Query for archived rides from HistoriqueCourse table  
@@ -421,7 +422,7 @@ router.get('/deliveries/:telephone', async (req, res) => {
 
     // Query for active deliveries from Livraison table
     const activeDeliveriesQuery = `
-      SELECT 
+      SELECT
         l.id_livraison,
         l.adresse_depart,
         l.adresse_arrivee,
@@ -446,6 +447,7 @@ router.get('/deliveries/:telephone', async (req, res) => {
       LEFT JOIN NoteLivraison n ON l.id_livraison = n.id_livraison
       LEFT JOIN TypeLivraison t ON l.id_type = t.id_type
       WHERE l.id_client = $1
+      AND l.etat_livraison IN ('terminee', 'annulee')
     `;
 
     // Query for archived deliveries from HistoriqueLivraison table  
@@ -628,6 +630,114 @@ router.get('/current/:clientId', async (req, res) => {
 
   } catch (err) {
     console.error(`❌ Error fetching current trip for client ${clientId}:`, err);
+    console.error('❌ Stack trace:', err.stack);
+    res.status(500).json({
+      success: false,
+      error: 'Erreur serveur',
+      details: err.message
+    });
+  }
+});
+
+// GET - Get client's current active delivery with delivery person details
+router.get('/current-delivery/:clientId', async (req, res) => {
+  const { clientId } = req.params;
+
+  try {
+    console.log(`📦 Fetching current delivery for client: ${clientId}`);
+
+    // Get current delivery with full delivery person details
+    const result = await pool.query(`
+      SELECT
+        l.id_livraison,
+        l.adresse_depart,
+        l.adresse_arrivee,
+        l.destinataire_nom,
+        l.destinataire_telephone,
+        l.taille_colis,
+        l.prix,
+        l.mode_paiement,
+        l.latitude_depart,
+        l.longitude_depart,
+        l.latitude_arrivee,
+        l.longitude_arrivee,
+        l.date_heure_depart,
+        l.date_heure_debut_livraison,
+        l.etat_livraison,
+        l.instructions,
+        liv.id_livreur,
+        liv.nom AS livreur_nom,
+        liv.prenom AS livreur_prenom,
+        liv.telephone AS livreur_telephone,
+        liv.photo AS livreur_photo,
+        t.nom AS type_livraison
+      FROM Livraison l
+      LEFT JOIN Livreur liv ON l.id_livreur = liv.id_livreur
+      LEFT JOIN TypeLivraison t ON l.id_type = t.id_type
+      WHERE l.id_client = $1
+      AND l.etat_livraison IN ('acceptee', 'en_route_pickup', 'arrivee_pickup', 'en_cours')
+      ORDER BY l.date_heure_depart DESC
+      LIMIT 1
+    `, [clientId]);
+
+    console.log(`📊 Found ${result.rowCount} active deliveries for client ${clientId}`);
+
+    if (result.rowCount === 0) {
+      return res.json({
+        success: true,
+        hasActiveDelivery: false,
+        message: 'Aucune livraison active'
+      });
+    }
+
+    const delivery = result.rows[0];
+
+    // Format the response
+    const response = {
+      success: true,
+      hasActiveDelivery: true,
+      delivery: {
+        id: delivery.id_livraison,
+        pickup: delivery.adresse_depart,
+        destination: delivery.adresse_arrivee,
+        recipientName: delivery.destinataire_nom,
+        recipientPhone: delivery.destinataire_telephone,
+        packageSize: delivery.taille_colis,
+        price: delivery.prix,
+        paymentMode: delivery.mode_paiement,
+        status: delivery.etat_livraison,
+        instructions: delivery.instructions,
+        departureTime: delivery.date_heure_depart,
+        startTime: delivery.date_heure_debut_livraison,
+        deliveryPerson: delivery.id_livreur ? {
+          id: delivery.id_livreur,
+          nom: `${delivery.livreur_prenom || ''} ${delivery.livreur_nom || ''}`.trim(),
+          telephone: delivery.livreur_telephone,
+          photo: delivery.livreur_photo
+        } : null,
+        deliveryType: delivery.type_livraison,
+        pickupCoords: delivery.latitude_depart && delivery.longitude_depart ? {
+          latitude: parseFloat(delivery.latitude_depart),
+          longitude: parseFloat(delivery.longitude_depart)
+        } : null,
+        destinationCoords: delivery.latitude_arrivee && delivery.longitude_arrivee ? {
+          latitude: parseFloat(delivery.latitude_arrivee),
+          longitude: parseFloat(delivery.longitude_arrivee)
+        } : null
+      }
+    };
+
+    console.log(`✅ Returning delivery details:`, {
+      deliveryId: response.delivery.id,
+      status: response.delivery.status,
+      hasDeliveryPerson: !!response.delivery.deliveryPerson,
+      deliveryPersonName: response.delivery.deliveryPerson?.nom
+    });
+
+    res.json(response);
+
+  } catch (err) {
+    console.error(`❌ Error fetching current delivery for client ${clientId}:`, err);
     console.error('❌ Stack trace:', err.stack);
     res.status(500).json({
       success: false,

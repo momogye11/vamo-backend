@@ -300,7 +300,7 @@ router.get('/:id/history', async (req, res) => {
 
     try {
         const result = await db.query(`
-            SELECT 
+            SELECT
                 id_course,
                 adresse_depart,
                 adresse_arrivee,
@@ -311,16 +311,18 @@ router.get('/:id/history', async (req, res) => {
                 date_heure_arrivee,
                 etat_course,
                 est_paye
-            FROM Course 
-            WHERE id_chauffeur = $1 
+            FROM Course
+            WHERE id_chauffeur = $1
+            AND etat_course IN ('terminee', 'annulee')
             ORDER BY date_heure_depart DESC
             LIMIT $2 OFFSET $3
         `, [id, limit, offset]);
 
         const totalCount = await db.query(`
             SELECT COUNT(*) as total
-            FROM Course 
+            FROM Course
             WHERE id_chauffeur = $1
+            AND etat_course IN ('terminee', 'annulee')
         `, [id]);
 
         res.json({
@@ -691,6 +693,107 @@ router.post('/decline-request', async (req, res) => {
         res.status(500).json({
             success: false,
             error: 'Erreur serveur'
+        });
+    }
+});
+
+// GET - Get driver's current active trip with client details
+router.get('/:id/active-trip', async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        console.log(`🚗 Fetching active trip for driver: ${id}`);
+
+        // Get current trip with full client details
+        const result = await db.query(`
+            SELECT
+                c.id_course,
+                c.adresse_depart,
+                c.adresse_arrivee,
+                c.distance_km,
+                c.duree_min,
+                c.prix,
+                c.mode_paiement,
+                c.mode_silencieux,
+                c.latitude_depart,
+                c.longitude_depart,
+                c.latitude_arrivee,
+                c.longitude_arrivee,
+                c.date_heure_depart,
+                c.date_heure_debut_course,
+                c.etat_course,
+                cl.id_client,
+                cl.nom AS client_nom,
+                cl.prenom AS client_prenom,
+                cl.telephone AS client_telephone
+            FROM Course c
+            LEFT JOIN Client cl ON c.id_client = cl.id_client
+            WHERE c.id_chauffeur = $1
+            AND c.etat_course IN ('acceptee', 'en_route_pickup', 'arrivee_pickup', 'en_cours')
+            ORDER BY c.date_heure_depart DESC
+            LIMIT 1
+        `, [id]);
+
+        console.log(`📊 Found ${result.rowCount} active trips for driver ${id}`);
+
+        if (result.rowCount === 0) {
+            return res.json({
+                success: true,
+                hasActiveTrip: false,
+                message: 'Aucune course active'
+            });
+        }
+
+        const trip = result.rows[0];
+
+        // Format the response
+        const response = {
+            success: true,
+            hasActiveTrip: true,
+            trip: {
+                id: trip.id_course,
+                pickup: trip.adresse_depart,
+                destination: trip.adresse_arrivee,
+                distance: trip.distance_km,
+                duration: trip.duree_min,
+                price: trip.prix,
+                paymentMode: trip.mode_paiement,
+                silentMode: trip.mode_silencieux,
+                status: trip.etat_course,
+                departureTime: trip.date_heure_depart,
+                startTime: trip.date_heure_debut_course,
+                client: trip.id_client ? {
+                    id: trip.id_client,
+                    nom: `${trip.client_prenom || ''} ${trip.client_nom || ''}`.trim(),
+                    telephone: trip.client_telephone
+                } : null,
+                pickupCoords: trip.latitude_depart && trip.longitude_depart ? {
+                    latitude: parseFloat(trip.latitude_depart),
+                    longitude: parseFloat(trip.longitude_depart)
+                } : null,
+                destinationCoords: trip.latitude_arrivee && trip.longitude_arrivee ? {
+                    latitude: parseFloat(trip.latitude_arrivee),
+                    longitude: parseFloat(trip.longitude_arrivee)
+                } : null
+            }
+        };
+
+        console.log(`✅ Returning trip details:`, {
+            tripId: response.trip.id,
+            status: response.trip.status,
+            hasClient: !!response.trip.client,
+            clientName: response.trip.client?.nom
+        });
+
+        res.json(response);
+
+    } catch (err) {
+        console.error(`❌ Error fetching active trip for driver ${id}:`, err);
+        console.error('❌ Stack trace:', err.stack);
+        res.status(500).json({
+            success: false,
+            error: 'Erreur serveur',
+            details: err.message
         });
     }
 });
