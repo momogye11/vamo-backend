@@ -928,29 +928,32 @@ function handleChatJoinRoom(ws, message) {
         return;
     }
 
+    // ✅ IMPORTANT: Normaliser tripId en string pour éviter les problèmes de Map (835 vs "835")
+    const tripIdString = String(tripId);
+
     // Stocker les infos de chat dans la connexion WebSocket
-    ws.chatTripId = tripId;
+    ws.chatTripId = tripIdString;
     ws.chatUserId = userId;
     ws.chatUserType = userType;
     ws.chatServiceType = serviceType || 'course';
 
     // Créer la room si elle n'existe pas
-    if (!chatRooms.has(tripId)) {
-        chatRooms.set(tripId, new Set());
-        console.log(`💬 Created new chat room: ${tripId}`);
+    if (!chatRooms.has(tripIdString)) {
+        chatRooms.set(tripIdString, new Set());
+        console.log(`💬 Created new chat room: ${tripIdString}`);
     }
 
     // Ajouter cette connexion à la room
-    chatRooms.get(tripId).add(ws);
-    console.log(`✅ User ${userId} (${userType}) joined chat room ${tripId}`);
-    console.log(`📊 Room ${tripId} now has ${chatRooms.get(tripId).size} participants`);
+    chatRooms.get(tripIdString).add(ws);
+    console.log(`✅ User ${userId} (${userType}) joined chat room ${tripIdString}`);
+    console.log(`📊 Room ${tripIdString} now has ${chatRooms.get(tripIdString).size} participants`);
 
     // Confirmer au client
     ws.send(JSON.stringify({
         type: 'chat-joined',
         data: {
-            tripId,
-            roomSize: chatRooms.get(tripId).size,
+            tripId: tripIdString,
+            roomSize: chatRooms.get(tripIdString).size,
             timestamp: new Date().toISOString()
         }
     }));
@@ -959,7 +962,8 @@ function handleChatJoinRoom(ws, message) {
 // Quitter une room de chat
 function handleChatLeaveRoom(ws, message) {
     const { tripId } = message.data || {};
-    const targetTripId = tripId || ws.chatTripId;
+    // ✅ Normaliser tripId en string
+    const targetTripId = tripId ? String(tripId) : ws.chatTripId;
 
     if (targetTripId && chatRooms.has(targetTripId)) {
         chatRooms.get(targetTripId).delete(ws);
@@ -992,12 +996,15 @@ function handleChatMessageSend(ws, message) {
         return;
     }
 
+    // ✅ Normaliser tripId en string
+    const tripIdString = String(tripId);
+
     // Broadcaster le message à tous les participants de la room
-    if (chatRooms.has(tripId)) {
+    if (chatRooms.has(tripIdString)) {
         const messageData = {
             type: 'chat-message-received',
             data: {
-                tripId,
+                tripId: tripIdString,
                 senderId,
                 senderType,
                 messageText,
@@ -1006,7 +1013,7 @@ function handleChatMessageSend(ws, message) {
         };
 
         let notifiedCount = 0;
-        chatRooms.get(tripId).forEach((clientWs) => {
+        chatRooms.get(tripIdString).forEach((clientWs) => {
             // Envoyer à tous SAUF l'expéditeur (il l'a déjà localement)
             if (clientWs !== ws && clientWs.readyState === WebSocket.OPEN) {
                 try {
@@ -1014,23 +1021,23 @@ function handleChatMessageSend(ws, message) {
                     notifiedCount++;
                 } catch (error) {
                     console.error(`❌ Error sending message to client:`, error);
-                    chatRooms.get(tripId).delete(clientWs);
+                    chatRooms.get(tripIdString).delete(clientWs);
                 }
             }
         });
 
-        console.log(`📤 Message broadcast to ${notifiedCount} participants in room ${tripId}`);
+        console.log(`📤 Message broadcast to ${notifiedCount} participants in room ${tripIdString}`);
 
         // Confirmer à l'expéditeur
         ws.send(JSON.stringify({
             type: 'chat-message-sent',
             data: {
-                tripId,
+                tripId: tripIdString,
                 timestamp: new Date().toISOString()
             }
         }));
     } else {
-        console.log(`⚠️ Chat room ${tripId} not found`);
+        console.log(`⚠️ Chat room ${tripIdString} not found`);
         ws.send(JSON.stringify({
             type: 'error',
             message: 'Chat room not found'
@@ -1046,12 +1053,15 @@ function handleChatTyping(ws, message) {
         return;
     }
 
+    // ✅ Normaliser tripId en string
+    const tripIdString = String(tripId);
+
     // Broadcaster l'indicateur aux autres participants
-    if (chatRooms.has(tripId)) {
+    if (chatRooms.has(tripIdString)) {
         const typingData = {
             type: 'chat-user-typing',
             data: {
-                tripId,
+                tripId: tripIdString,
                 userId,
                 userType,
                 isTyping,
@@ -1059,7 +1069,7 @@ function handleChatTyping(ws, message) {
             }
         };
 
-        chatRooms.get(tripId).forEach((clientWs) => {
+        chatRooms.get(tripIdString).forEach((clientWs) => {
             // Envoyer à tous SAUF celui qui tape
             if (clientWs !== ws && clientWs.readyState === WebSocket.OPEN) {
                 try {
@@ -1074,16 +1084,18 @@ function handleChatTyping(ws, message) {
 
 // Fonction utilitaire pour notifier un nouveau message via WebSocket
 function notifyNewChatMessage(tripId, messageData) {
-    console.log(`💬 Notifying chat room ${tripId} of new message`);
+    // ✅ Normaliser tripId en string
+    const tripIdString = String(tripId);
+    console.log(`💬 Notifying chat room ${tripIdString} of new message`);
 
-    if (chatRooms.has(tripId)) {
+    if (chatRooms.has(tripIdString)) {
         const notification = {
             type: 'chat-message-received',
             data: messageData
         };
 
         let notifiedCount = 0;
-        chatRooms.get(tripId).forEach((clientWs) => {
+        chatRooms.get(tripIdString).forEach((clientWs) => {
             if (clientWs.readyState === WebSocket.OPEN) {
                 try {
                     clientWs.send(JSON.stringify(notification));
@@ -1094,7 +1106,7 @@ function notifyNewChatMessage(tripId, messageData) {
             }
         });
 
-        console.log(`📤 Notified ${notifiedCount} participants in room ${tripId}`);
+        console.log(`📤 Notified ${notifiedCount} participants in room ${tripIdString}`);
         return notifiedCount;
     }
 
