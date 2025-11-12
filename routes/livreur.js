@@ -389,22 +389,32 @@ router.get('/:id/history', async (req, res) => {
     try {
         const result = await db.query(`
             SELECT
-                id_livraison,
-                adresse_depart,
-                adresse_arrivee,
-                destinataire_nom,
-                destinataire_telephone,
-                taille_colis,
-                prix,
-                date_heure_depart,
-                date_heure_arrivee,
-                etat_livraison,
-                est_paye,
-                instructions
-            FROM Livraison
-            WHERE id_livreur = $1
-            AND etat_livraison IN ('terminee', 'annulee')
-            ORDER BY date_heure_depart DESC
+                l.id_livraison,
+                l.adresse_depart,
+                l.adresse_arrivee,
+                l.destinataire_nom,
+                l.destinataire_telephone,
+                l.taille_colis,
+                l.prix,
+                l.date_heure_depart,
+                l.date_heure_arrivee,
+                l.etat_livraison,
+                l.est_paye,
+                l.instructions,
+                cl.nom as client_nom,
+                cl.prenom as client_prenom,
+                cl.telephone as client_telephone,
+                t.nom as type_livraison,
+                p.mode as mode_paiement,
+                n.note as rating
+            FROM Livraison l
+            LEFT JOIN Client cl ON l.id_client = cl.id_client
+            LEFT JOIN TypeLivraison t ON l.id_type = t.id_type
+            LEFT JOIN PaiementLivraison p ON l.id_livraison = p.id_livraison
+            LEFT JOIN NoteLivraison n ON l.id_livraison = n.id_livraison
+            WHERE l.id_livreur = $1
+            AND l.etat_livraison IN ('terminee', 'annulee')
+            ORDER BY l.date_heure_depart DESC
             LIMIT $2 OFFSET $3
         `, [id, limit, offset]);
 
@@ -418,7 +428,30 @@ router.get('/:id/history', async (req, res) => {
         res.json({
             success: true,
             data: {
-                deliveries: result.rows,
+                deliveries: result.rows.map(delivery => ({
+                    id_livraison: delivery.id_livraison,
+                    adresse_depart: delivery.adresse_depart,
+                    adresse_arrivee: delivery.adresse_arrivee,
+                    destinataire_nom: delivery.destinataire_nom,
+                    destinataire_telephone: delivery.destinataire_telephone,
+                    taille_colis: delivery.taille_colis,
+                    prix: delivery.prix,
+                    date_heure_depart: delivery.date_heure_depart,
+                    date_heure_arrivee: delivery.date_heure_arrivee,
+                    etat_livraison: delivery.etat_livraison,
+                    est_paye: delivery.est_paye,
+                    instructions: delivery.instructions,
+                    client: delivery.client_nom && delivery.client_prenom ?
+                        `${delivery.client_prenom} ${delivery.client_nom}` : null,
+                    clientInfo: {
+                        nom: delivery.client_nom,
+                        prenom: delivery.client_prenom,
+                        telephone: delivery.client_telephone
+                    },
+                    type_livraison: delivery.type_livraison,
+                    mode_paiement: delivery.mode_paiement,
+                    rating: delivery.rating
+                })),
                 total: parseInt(totalCount.rows[0].total) || 0,
                 hasMore: (parseInt(offset) + parseInt(limit)) < parseInt(totalCount.rows[0].total)
             }

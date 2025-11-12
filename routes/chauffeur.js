@@ -301,20 +301,34 @@ router.get('/:id/history', async (req, res) => {
     try {
         const result = await db.query(`
             SELECT
-                id_course,
-                adresse_depart,
-                adresse_arrivee,
-                distance_km,
-                duree_min,
-                prix,
-                date_heure_depart,
-                date_heure_arrivee,
-                etat_course,
-                est_paye
-            FROM Course
-            WHERE id_chauffeur = $1
-            AND etat_course IN ('terminee', 'annulee')
-            ORDER BY date_heure_depart DESC
+                c.id_course,
+                c.adresse_depart,
+                c.adresse_arrivee,
+                c.distance_km,
+                c.duree_min,
+                c.prix,
+                c.date_heure_depart,
+                c.date_heure_arrivee,
+                c.etat_course,
+                c.est_paye,
+                cl.nom as client_nom,
+                cl.prenom as client_prenom,
+                cl.telephone as client_telephone,
+                v.marque as vehicule_marque,
+                v.modele as vehicule_modele,
+                v.plaque as vehicule_plaque,
+                v.couleur as vehicule_couleur,
+                v.type as vehicule_type,
+                p.mode as mode_paiement,
+                n.note as rating
+            FROM Course c
+            LEFT JOIN Client cl ON c.id_client = cl.id_client
+            LEFT JOIN Vehicule v ON c.id_chauffeur = v.id_chauffeur
+            LEFT JOIN Paiement p ON c.id_course = p.id_course
+            LEFT JOIN Note n ON c.id_course = n.id_course
+            WHERE c.id_chauffeur = $1
+            AND c.etat_course IN ('terminee', 'annulee')
+            ORDER BY c.date_heure_depart DESC
             LIMIT $2 OFFSET $3
         `, [id, limit, offset]);
 
@@ -328,7 +342,34 @@ router.get('/:id/history', async (req, res) => {
         res.json({
             success: true,
             data: {
-                trips: result.rows,
+                trips: result.rows.map(trip => ({
+                    id_course: trip.id_course,
+                    adresse_depart: trip.adresse_depart,
+                    adresse_arrivee: trip.adresse_arrivee,
+                    distance_km: trip.distance_km,
+                    duree_min: trip.duree_min,
+                    prix: trip.prix,
+                    date_heure_depart: trip.date_heure_depart,
+                    date_heure_arrivee: trip.date_heure_arrivee,
+                    etat_course: trip.etat_course,
+                    est_paye: trip.est_paye,
+                    client: trip.client_nom && trip.client_prenom ?
+                        `${trip.client_prenom} ${trip.client_nom}` : null,
+                    clientInfo: {
+                        nom: trip.client_nom,
+                        prenom: trip.client_prenom,
+                        telephone: trip.client_telephone
+                    },
+                    vehicule: {
+                        marque: trip.vehicule_marque,
+                        modele: trip.vehicule_modele,
+                        plaque: trip.vehicule_plaque,
+                        couleur: trip.vehicule_couleur,
+                        type: trip.vehicule_type
+                    },
+                    mode_paiement: trip.mode_paiement,
+                    rating: trip.rating
+                })),
                 total: parseInt(totalCount.rows[0].total) || 0,
                 hasMore: (parseInt(offset) + parseInt(limit)) < parseInt(totalCount.rows[0].total)
             }

@@ -237,11 +237,19 @@ router.get('/rides/:telephone', async (req, res) => {
         c.est_paye,
         ch.nom as chauffeur_nom,
         ch.prenom as chauffeur_prenom,
+        ch.photo_selfie as chauffeur_photo,
+        ch.telephone as chauffeur_telephone,
+        v.marque as vehicule_marque,
+        v.modele as vehicule_modele,
+        v.plaque as vehicule_plaque,
+        v.couleur as vehicule_couleur,
+        v.type as vehicule_type,
         p.mode as mode_paiement,
         n.note as rating,
         'active' as source_table
       FROM Course c
       LEFT JOIN Chauffeur ch ON c.id_chauffeur = ch.id_chauffeur
+      LEFT JOIN Vehicule v ON ch.id_chauffeur = v.id_chauffeur
       LEFT JOIN Paiement p ON c.id_course = p.id_course
       LEFT JOIN Note n ON c.id_course = n.id_course
       WHERE c.id_client = $1
@@ -296,8 +304,21 @@ router.get('/rides/:telephone', async (req, res) => {
         arrivalTime: ride.date_heure_arrivee,
         status: ride.etat_course,
         isPaid: ride.est_paye,
-        driver: ride.chauffeur_nom && ride.chauffeur_prenom ? 
+        driver: ride.chauffeur_nom && ride.chauffeur_prenom ?
           `${ride.chauffeur_prenom} ${ride.chauffeur_nom}` : null,
+        driverInfo: {
+          nom: ride.chauffeur_nom,
+          prenom: ride.chauffeur_prenom,
+          photo: ride.chauffeur_photo,
+          telephone: ride.chauffeur_telephone
+        },
+        vehicule: {
+          marque: ride.vehicule_marque,
+          modele: ride.vehicule_modele,
+          plaque: ride.vehicule_plaque,
+          couleur: ride.vehicule_couleur,
+          type: ride.vehicule_type
+        },
         paymentMethod: ride.mode_paiement,
         rating: ride.rating,
         source: ride.source_table
@@ -437,6 +458,9 @@ router.get('/deliveries/:telephone', async (req, res) => {
         l.est_paye,
         liv.nom as livreur_nom,
         liv.prenom as livreur_prenom,
+        liv.photo_selfie as livreur_photo,
+        liv.telephone as livreur_telephone,
+        liv.type_vehicule as livreur_type_vehicule,
         p.mode as mode_paiement,
         n.note as rating,
         t.nom as type_livraison,
@@ -505,8 +529,15 @@ router.get('/deliveries/:telephone', async (req, res) => {
         arrivalTime: delivery.date_heure_arrivee,
         status: delivery.etat_livraison,
         isPaid: delivery.est_paye,
-        deliveryPerson: delivery.livreur_nom && delivery.livreur_prenom ? 
+        deliveryPerson: delivery.livreur_nom && delivery.livreur_prenom ?
           `${delivery.livreur_prenom} ${delivery.livreur_nom}` : null,
+        deliveryPersonInfo: {
+          nom: delivery.livreur_nom,
+          prenom: delivery.livreur_prenom,
+          photo: delivery.livreur_photo,
+          telephone: delivery.livreur_telephone,
+          typeVehicule: delivery.livreur_type_vehicule
+        },
         paymentMethod: delivery.mode_paiement,
         rating: delivery.rating,
         deliveryType: delivery.type_livraison,
