@@ -13,7 +13,7 @@ router.get('/available/:driverId', async (req, res) => {
 
         // Simple query for available trips (no complex queue system)
         const result = await db.query(`
-            SELECT 
+            SELECT
                 c.id_course,
                 c.adresse_depart,
                 c.adresse_arrivee,
@@ -28,13 +28,15 @@ router.get('/available/:driverId', async (req, res) => {
                 c.longitude_arrivee,
                 c.telephone_client,
                 c.nom_client,
+                c.beneficiaire_nom,
+                c.beneficiaire_telephone,
                 c.date_heure_depart,
                 c.etat_course,
                 cl.nom as client_nom,
                 cl.prenom as client_prenom
             FROM Course c
             LEFT JOIN Client cl ON c.id_client = cl.id_client
-            WHERE c.etat_course = 'en_attente' 
+            WHERE c.etat_course = 'en_attente'
             AND c.id_chauffeur IS NULL
             ORDER BY c.date_heure_depart ASC
             LIMIT 1
@@ -81,6 +83,8 @@ router.get('/available/:driverId', async (req, res) => {
                 silentMode: trip.mode_silencieux,
                 clientName: `${trip.client_prenom || ''} ${trip.client_nom || ''}`.trim() || trip.nom_client || 'Client Vamo',
                 clientPhone: trip.telephone_client,
+                beneficiaireName: trip.beneficiaire_nom || null,
+                beneficiairePhone: trip.beneficiaire_telephone || null,
                 pickupCoords: {
                     latitude: parseFloat(trip.latitude_depart),
                     longitude: parseFloat(trip.longitude_depart)
@@ -278,6 +282,8 @@ router.post('/accept', async (req, res) => {
                 silentMode: trip.mode_silencieux || false,
                 clientName: trip.nom_client || 'Client Vamo',
                 clientPhone: trip.telephone_client,
+                beneficiaireName: trip.beneficiaire_nom || null,
+                beneficiairePhone: trip.beneficiaire_telephone || null,
                 status: trip.etat_course,
                 pickupCoords: {
                     latitude: parseFloat(trip.latitude_depart) || 0,

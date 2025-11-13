@@ -104,6 +104,20 @@ router.post('/search', async (req, res) => {
         // Start database transaction
         await db.query('BEGIN');
         
+        // Prepare beneficiary data (only if passenger is NOT the client themselves)
+        // If est_client is true or undefined, it means client is ordering for themselves
+        const isBeneficiaryDifferent = passenger && passenger.est_client === false;
+        const beneficiaireNom = isBeneficiaryDifferent ? `${passenger.nom || ''} ${passenger.prenom || ''}`.trim() : null;
+        const beneficiaireTelephone = isBeneficiaryDifferent ? passenger.telephone : null;
+
+        console.log('👤 Passenger data received:', passenger);
+        console.log('👤 Beneficiary check:', {
+            isBeneficiaryDifferent,
+            nom: beneficiaireNom,
+            telephone: beneficiaireTelephone,
+            est_client: passenger?.est_client
+        });
+
         // Create a ride request in the database
         const courseResult = await db.query(`
             INSERT INTO Course (
@@ -126,8 +140,10 @@ router.post('/search', async (req, res) => {
                 passager_nom,
                 passager_prenom,
                 passager_telephone,
-                passager_est_client
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, CURRENT_TIMESTAMP, 'en_attente', $14, $15, $16, $17, $18)
+                passager_est_client,
+                beneficiaire_nom,
+                beneficiaire_telephone
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, CURRENT_TIMESTAMP, 'en_attente', $14, $15, $16, $17, $18, $19, $20)
             RETURNING id_course
         `, [
             clientId || 1, // fallback to 1 if not provided
@@ -144,10 +160,12 @@ router.post('/search', async (req, res) => {
             null, // Client phone will be set when authenticated
             null, // Client name will be set when authenticated
             Boolean(silentMode), // Mode silencieux
-            passenger?.nom || null, // 🎯 Nom du passager
-            passenger?.prenom || null, // 🎯 Prénom du passager
-            passenger?.telephone || null, // 🎯 Téléphone du passager
-            passenger?.est_client !== undefined ? passenger.est_client : true // 🎯 Est-ce le client lui-même ?
+            passenger?.nom || null, // 🎯 Nom du passager (legacy)
+            passenger?.prenom || null, // 🎯 Prénom du passager (legacy)
+            passenger?.telephone || null, // 🎯 Téléphone du passager (legacy)
+            passenger?.est_client !== undefined ? passenger.est_client : true, // 🎯 Est-ce le client lui-même ? (legacy)
+            beneficiaireNom, // 🎯 Nom complet du bénéficiaire
+            beneficiaireTelephone // 🎯 Téléphone du bénéficiaire
         ]);
         
         const courseId = courseResult.rows[0].id_course;
