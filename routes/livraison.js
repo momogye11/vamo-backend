@@ -31,8 +31,9 @@ router.post('/search', async (req, res) => {
         colisSize,
         description,
         instructions,
-        recipientName,      // ✅ Nom du destinataire
-        recipientPhone,     // ✅ Téléphone du destinataire
+        recipientName,      // ✅ Nom du destinataire (legacy support)
+        recipientPhone,     // ✅ Téléphone du destinataire (legacy support)
+        recipient,          // 🎯 Objet complet du destinataire { nom, prenom, telephone, est_client }
         intermediateStops
     } = req.body;
     
@@ -46,7 +47,8 @@ router.post('/search', async (req, res) => {
         console.log('  Route Distance:', routeDistance);
         console.log('  Route Duration:', routeDuration);
         console.log('  Colis Size:', colisSize);
-        
+        console.log('  Recipient:', recipient ? `${recipient.nom} ${recipient.prenom || ''}` : 'Non spécifié');
+
         console.log('🔍 DEBUG - About to extract coordinates...');
         
         // Extract addresses and coordinates from the frontend data structure
@@ -177,9 +179,11 @@ router.post('/search', async (req, res) => {
                 mode_paiement,
                 description_colis,
                 destinataire_nom,
+                destinataire_prenom,
                 destinataire_telephone,
+                destinataire_est_client,
                 date_heure_demande
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'en_attente', $12, $13, $14, $15, $16, $17, CURRENT_TIMESTAMP)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'en_attente', $12, $13, $14, $15, $16, $17, $18, $19, CURRENT_TIMESTAMP)
             RETURNING id_livraison
         `, [
             clientId,
@@ -197,8 +201,10 @@ router.post('/search', async (req, res) => {
             cleanDuration,
             dbPaymentMethod,
             description || 'Colis à livrer',
-            recipientName || '',      // ✅ Nom du destinataire
-            recipientPhone || ''       // ✅ Téléphone du destinataire
+            recipient?.nom || recipientName || '',      // 🎯 Nom du destinataire (priorité à recipient, sinon recipientName legacy)
+            recipient?.prenom || '',                    // 🎯 Prénom du destinataire
+            recipient?.telephone || recipientPhone || '',  // 🎯 Téléphone du destinataire
+            recipient?.est_client !== undefined ? recipient.est_client : true // 🎯 Flag si c'est le client
         ]);
         
         const deliveryId = deliveryResult.rows[0].id_livraison;
