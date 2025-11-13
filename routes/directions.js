@@ -2,54 +2,73 @@ const express = require('express');
 const axios = require('axios');
 const router = express.Router();
 
+// Fonction d'arrondissement au 50 ou 100 CFA le plus proche
+function roundPrice(price, roundTo = 50) {
+    return Math.round(price / roundTo) * roundTo;
+}
+
 // Fonctions de calcul tarifaire
 function calculateServicePrice(serviceRates, distanceKm, zone) {
     const baseFare = serviceRates.base;
     const perKmRate = zone === 'suburb' ? serviceRates.perKmSuburb : serviceRates.perKmCity;
     const distanceFare = Math.round(distanceKm * perKmRate);
-    const total = baseFare + distanceFare;
-    
+    const rawTotal = baseFare + distanceFare;
+
+    // Arrondissement selon le service (50 ou 100 CFA)
+    const roundTo = serviceRates.roundTo || 50;
+    const total = roundPrice(rawTotal, roundTo);
+
     return {
         base: baseFare,
         distance: distanceFare,
+        rawTotal: rawTotal,
         total: total,
         perKmRate: perKmRate,
         zone: zone,
-        waitingFree: serviceRates.waitingFree
+        waitingFree: serviceRates.waitingFree,
+        roundedBy: total - rawTotal
     };
 }
 
 function calculateYangoPrice(serviceType, distanceKm, zone) {
-    // Prix de référence Yango pour comparaison
+    // Prix de référence Yango RÉELS (tarifs officiels 2025)
     const yangoRates = {
         eco: {
-            base: 570,           // Prix de départ Yango Éco
-            perKmCity: 100,      // Ville Yango Éco
-            perKmSuburb: 180,    // Périphérie Yango Éco
-            waitingAfter3Min: 30 // 30 CFA/min après 3 min
+            base: 533,           // Prix minimum Yango Éco (inclut 1.1km + 4min)
+            perKmCity: 86,       // Max 86 CFA/km en ville (tarif officiel)
+            perKmSuburb: 180,    // Max 180 CFA/km en périphérie
+            perMinute: 32,       // Max 32 CFA/min
+            waitingAfter3Min: 30 // 30 CFA/min après 3 min gratuites
         },
         comfort: {
-            base: 680,           // Prix de départ Yango Confort
-            perKmCity: 110,      // Ville Yango Confort
-            perKmSuburb: 190,    // Périphérie Yango Confort
+            base: 650,           // Estimé légèrement plus élevé que Éco
+            perKmCity: 100,      // Estimé
+            perKmSuburb: 190,    // Estimé
+            perMinute: 35,       // Estimé
             waitingAfter3Min: 35 // 35 CFA/min après 3 min
         }
     };
-    
+
     const rates = yangoRates[serviceType];
     const baseFare = rates.base;
     const perKmRate = zone === 'suburb' ? rates.perKmSuburb : rates.perKmCity;
     const distanceFare = Math.round(distanceKm * perKmRate);
-    const total = baseFare + distanceFare;
-    
+    const rawTotal = baseFare + distanceFare;
+
+    // Yango arrondit au 100 CFA supérieur
+    const total = roundPrice(rawTotal, 100);
+
     return {
         base: baseFare,
         distance: distanceFare,
+        rawTotal: rawTotal,
         total: total,
         perKmRate: perKmRate,
+        perMinute: rates.perMinute,
         zone: zone,
         waitingPaid: true,
-        waitingRate: rates.waitingAfter3Min
+        waitingRate: rates.waitingAfter3Min,
+        roundedBy: total - rawTotal
     };
 }
 
@@ -255,43 +274,48 @@ const calculateRoute = async (req, res) => {
         const isSuburb = distanceKm > 10; // Simple logic: >10km = suburb
         const zone = isSuburb ? 'suburb' : 'city';
         
-        // Grille tarifaire Vamo - Compétitive par rapport à Yango
+        // Grille tarifaire Vamo - OPTIMISÉE 0% COMMISSION
+        // Client paie moins + Chauffeur gagne plus = Win-Win !
         const pricing = {
             // === COURSES VTC ===
-            // Service Vamo (Éco) - Alternative compétitive à Yango Éco
-            vamo: { 
-                base: 500,           // Base de départ (~1,1 km) vs 570 CFA Yango
-                perKmCity: 90,       // Ville vs 100 CFA/km Yango
-                perKmSuburb: 150,    // Périphérie vs 180 CFA/km Yango
+            // Service Vamo (Éco) - 10-15% moins cher que Yango grâce à 0% commission
+            vamo: {
+                base: 500,           // Base de départ vs 533 CFA Yango
+                perKmCity: 75,       // Ville vs 86 CFA/km Yango (~13% moins cher)
+                perKmSuburb: 150,    // Périphérie vs 180 CFA/km Yango (~17% moins cher)
+                roundTo: 50,         // Arrondissement au 50 CFA le plus proche
                 waitingFree: true    // Attente GRATUITE vs 30 CFA/min Yango après 3min
             },
-            
-            // Service Comfort - Alternative compétitive à Yango Confort
-            comfort: { 
-                base: 600,           // Base de départ vs 680 CFA Yango
-                perKmCity: 100,      // Ville vs 110 CFA/km Yango  
-                perKmSuburb: 170,    // Périphérie vs 190 CFA/km Yango
+
+            // Service Comfort - Prix similaire à Yango mais meilleure qualité
+            comfort: {
+                base: 600,           // Base de départ vs 650 CFA Yango
+                perKmCity: 95,       // Ville vs 100 CFA/km Yango (~5% moins cher)
+                perKmSuburb: 170,    // Périphérie vs 190 CFA/km Yango (~11% moins cher)
+                roundTo: 100,        // Arrondissement au 100 CFA le plus proche
                 waitingFree: true    // Attente GRATUITE vs 35 CFA/min Yango après 3min
             },
 
             // === LIVRAISONS MOTO ===
-            // Livraison Express - Alternative compétitive à Yango Express Moto
+            // Livraison Express - ~10% moins cher que Yango Express Moto
             express: {
                 base: 200,           // Prise en charge vs 220 CFA Yango
-                perKmCity: 100,      // Ville vs 120 CFA/km Yango (dégressif 96→75)
-                perKmSuburb: 160,    // Périphérie vs 180 CFA/km Yango (dégressif→170)
-                waitingFreeMinutes: 10,  // 10 min GRATUITES vs 10 min Yango
+                perKmCity: 100,      // Ville vs 120 CFA/km Yango (~17% moins cher)
+                perKmSuburb: 160,    // Périphérie vs 180 CFA/km Yango (~11% moins cher)
+                roundTo: 50,         // Arrondissement au 50 CFA
+                waitingFreeMinutes: 10,  // 10 min GRATUITES identique à Yango
                 waitingAfterFree: 80,    // 80 CFA/min après vs 100 CFA/min Yango
                 service: 'express'
             },
 
             // Livraison Flex - Service économique avec plus d'attente gratuite
             flex: {
-                base: 150,           // Base encore plus compétitive 
-                perKmCity: 80,       // Plus économique que Express
-                perKmSuburb: 140,    // Plus économique en périphérie
-                waitingFreeMinutes: 15,  // 15 min GRATUITES (avantage vs Yango)
-                waitingAfterFree: 60,    // 60 CFA/min après (très compétitif)
+                base: 150,           // Base encore plus compétitive
+                perKmCity: 80,       // Plus économique que Express (~33% moins cher)
+                perKmSuburb: 140,    // Plus économique en périphérie (~22% moins cher)
+                roundTo: 50,         // Arrondissement au 50 CFA
+                waitingFreeMinutes: 15,  // 15 min GRATUITES (5 min de plus que Yango !)
+                waitingAfterFree: 60,    // 60 CFA/min après (très compétitif vs 100)
                 service: 'flex'
             }
         };
