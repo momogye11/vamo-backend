@@ -680,6 +680,16 @@ try {
     console.error('❌ Error loading WebSocket routes:', error);
 }
 
+// Load Proches (contacts) routes
+console.log('Loading Proches routes...');
+try {
+    const prochesRouter = require('./routes/proches');
+    app.use('/api/proches', prochesRouter);
+    console.log('✅ Proches routes loaded successfully');
+} catch (error) {
+    console.error('❌ Error loading Proches routes:', error);
+}
+
 
 // 🚀 Lancer serveur
 const PORT = process.env.PORT || 5002;

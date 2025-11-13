@@ -1597,13 +1597,9 @@ router.post('/search', async (req, res) => {
                 etat_course,
                 distance_km,
                 duree_min,
-                date_heure_depart,
-                passager_nom,
-                passager_prenom,
-                passager_telephone,
-                passager_est_client
+                date_heure_depart
             ) VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CURRENT_TIMESTAMP, $13, $14, $15, $16
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CURRENT_TIMESTAMP
             ) RETURNING id_course
         `, [
             1, // Default client ID
@@ -1617,11 +1613,7 @@ router.post('/search', async (req, res) => {
             'especes',
             'en_attente',
             5.0, // Default distance
-            15,  // Default duration
-            passenger?.nom || null,
-            passenger?.prenom || null,
-            passenger?.telephone || null,
-            passenger?.est_client !== undefined ? passenger.est_client : true
+            15   // Default duration
         ]);
 
         const tripId = result.rows[0].id_course;
