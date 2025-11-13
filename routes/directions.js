@@ -274,25 +274,25 @@ const calculateRoute = async (req, res) => {
         const isSuburb = distanceKm > 10; // Simple logic: >10km = suburb
         const zone = isSuburb ? 'suburb' : 'city';
         
-        // Grille tarifaire Vamo - OPTIMISÉE 0% COMMISSION
-        // Client paie moins + Chauffeur gagne plus = Win-Win !
+        // Grille tarifaire Vamo - STRATÉGIE AGRESSIVE 0% COMMISSION
+        // Client paie 10-20% MOINS + Chauffeur gagne TOUJOURS PLUS = Win-Win-Win ! 🔥
         // TOUS LES PRIX FINISSENT PAR 00 CFA (arrondis à 100 CFA)
         const pricing = {
             // === COURSES VTC ===
-            // Service Vamo (Éco) - 8-12% moins cher que Yango grâce à 0% commission
+            // Service Vamo (Éco) - DISRUPTION : 10-20% moins cher que Yango !
             vamo: {
                 base: 500,           // Base de départ vs 533 CFA Yango
-                perKmCity: 80,       // Ville vs 86 CFA/km Yango (~7% moins cher)
-                perKmSuburb: 160,    // Périphérie vs 180 CFA/km Yango (~11% moins cher)
+                perKmCity: 70,       // Ville vs 86 CFA/km Yango (~19% moins cher) 🔥
+                perKmSuburb: 140,    // Périphérie vs 180 CFA/km Yango (~22% moins cher) 🔥
                 roundTo: 100,        // Arrondissement au 100 CFA uniquement
                 waitingFree: true    // Attente GRATUITE vs 30 CFA/min Yango après 3min
             },
 
-            // Service Comfort - Prix similaire à Yango mais meilleure qualité
+            // Service Comfort - Qualité premium à prix compétitif
             comfort: {
                 base: 600,           // Base de départ vs 650 CFA Yango
-                perKmCity: 100,      // Ville vs 100 CFA/km Yango (même prix/km mais base moins chère)
-                perKmSuburb: 180,    // Périphérie vs 190 CFA/km Yango (~5% moins cher)
+                perKmCity: 90,       // Ville vs 100 CFA/km Yango (~10% moins cher)
+                perKmSuburb: 160,    // Périphérie vs 190 CFA/km Yango (~16% moins cher)
                 roundTo: 100,        // Arrondissement au 100 CFA uniquement
                 waitingFree: true    // Attente GRATUITE vs 35 CFA/min Yango après 3min
             },
