@@ -1195,6 +1195,75 @@ app.post('/api/debug/upload-chauffeur-to-cloudinary', async (req, res) => {
     }
 });
 
+// Clean up placeholder images (via.placeholder.com doesn't work)
+app.post('/api/debug/clean-placeholder-images', async (req, res) => {
+    try {
+        console.log('🧹 Cleaning placeholder images...');
+
+        // Update Livreur table
+        const livreurResult = await db.query(`
+            UPDATE Livreur
+            SET
+                photo_vehicule = CASE
+                    WHEN photo_vehicule LIKE 'https://via.placeholder.com%' THEN NULL
+                    ELSE photo_vehicule
+                END,
+                photo_cni = CASE
+                    WHEN photo_cni LIKE 'https://via.placeholder.com%' THEN NULL
+                    ELSE photo_cni
+                END,
+                photo_selfie = CASE
+                    WHEN photo_selfie LIKE 'https://via.placeholder.com%' THEN NULL
+                    ELSE photo_selfie
+                END
+            WHERE photo_vehicule LIKE 'https://via.placeholder.com%'
+               OR photo_cni LIKE 'https://via.placeholder.com%'
+               OR photo_selfie LIKE 'https://via.placeholder.com%'
+            RETURNING id_livreur, nom, prenom
+        `);
+
+        // Update Chauffeur table
+        const chauffeurResult = await db.query(`
+            UPDATE Chauffeur
+            SET
+                photo_vehicule = CASE
+                    WHEN photo_vehicule LIKE 'https://via.placeholder.com%' THEN NULL
+                    ELSE photo_vehicule
+                END,
+                photo_cni = CASE
+                    WHEN photo_cni LIKE 'https://via.placeholder.com%' THEN NULL
+                    ELSE photo_cni
+                END,
+                photo_selfie = CASE
+                    WHEN photo_selfie LIKE 'https://via.placeholder.com%' THEN NULL
+                    ELSE photo_selfie
+                END
+            WHERE photo_vehicule LIKE 'https://via.placeholder.com%'
+               OR photo_cni LIKE 'https://via.placeholder.com%'
+               OR photo_selfie LIKE 'https://via.placeholder.com%'
+            RETURNING id_chauffeur, nom, prenom
+        `);
+
+        console.log(`✅ Cleaned ${livreurResult.rowCount} livreurs and ${chauffeurResult.rowCount} chauffeurs`);
+
+        res.json({
+            success: true,
+            message: 'Placeholder images cleaned successfully',
+            livreurs_updated: livreurResult.rows,
+            chauffeurs_updated: chauffeurResult.rows,
+            total_updated: livreurResult.rowCount + chauffeurResult.rowCount
+        });
+
+    } catch (error) {
+        console.error('❌ Error cleaning placeholder images:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to clean placeholder images',
+            details: error.message
+        });
+    }
+});
+
 // Test endpoint
 app.get('/api/test', (req, res) => {
     res.json({ 
