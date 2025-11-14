@@ -1,0 +1,979 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vamo Admin - Dashboard Complet</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+        :root {
+            --vamo-gold: #C6B383;
+            --vamo-gold-light: #D4C096;
+            --vamo-gold-dark: #B8A170;
+            --vamo-white: #FFFFFF;
+            --vamo-dark: #2C2C2C;
+            --card-bg: rgba(255, 255, 255, 0.95);
+            --glass-border: rgba(198, 179, 131, 0.3);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #F8F7F4 0%, #FDFCF8 50%, #F5F0E6 100%);
+            min-height: 100vh;
+            color: var(--vamo-dark);
+        }
+
+        /* Sidebar Responsive */
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            height: 100vh;
+            width: 280px;
+            background: linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(253,252,248,0.95) 100%);
+            border-right: 1px solid var(--glass-border);
+            box-shadow: 4px 0 24px rgba(198, 179, 131, 0.1);
+            transition: transform 0.3s ease;
+            z-index: 1000;
+            overflow-y: auto;
+        }
+
+        /* Mobile: sidebar cachée par défaut */
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(-100%);
+            }
+
+            .sidebar.active {
+                transform: translateX(0);
+            }
+        }
+
+        .main-content {
+            margin-left: 280px;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        /* Mobile: main content pleine largeur */
+        @media (max-width: 768px) {
+            .main-content {
+                margin-left: 0;
+                padding: 15px;
+            }
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            padding: 14px 20px;
+            margin: 4px 12px;
+            border-radius: 12px;
+            color: var(--vamo-dark);
+            text-decoration: none;
+            transition: all 0.2s ease;
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        .nav-item:hover {
+            background: linear-gradient(135deg, rgba(198, 179, 131, 0.1), rgba(198, 179, 131, 0.05));
+            transform: translateX(4px);
+        }
+
+        .nav-item.active {
+            background: linear-gradient(135deg, var(--vamo-gold), var(--vamo-gold-dark));
+            color: white;
+            box-shadow: 0 4px 12px rgba(198, 179, 131, 0.3);
+        }
+
+        .nav-icon {
+            margin-right: 12px;
+            font-size: 20px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(198, 179, 131, 0.15);
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 40px rgba(198, 179, 131, 0.25);
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, rgba(198, 179, 131, 0.1), rgba(255, 255, 255, 0.9));
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 24px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-6px) scale(1.02);
+            box-shadow: 0 15px 40px rgba(198, 179, 131, 0.3);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--vamo-gold), var(--vamo-gold-dark));
+            color: white;
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(198, 179, 131, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(198, 179, 131, 0.5);
+        }
+
+        .btn-secondary {
+            background: white;
+            color: var(--vamo-gold);
+            padding: 10px 20px;
+            border-radius: 10px;
+            border: 2px solid var(--vamo-gold);
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-secondary:hover {
+            background: var(--vamo-gold);
+            color: white;
+        }
+
+        .page-section {
+            display: none;
+        }
+
+        .page-section.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .mobile-menu-btn {
+            display: none;
+            background: var(--vamo-gold);
+            color: white;
+            padding: 10px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+        }
+
+        @media (max-width: 768px) {
+            .mobile-menu-btn {
+                display: block;
+            }
+        }
+
+        /* Tables responsive */
+        .table-container {
+            overflow-x: auto;
+            border-radius: 12px;
+            background: white;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            background: linear-gradient(135deg, var(--vamo-gold), var(--vamo-gold-dark));
+            color: white;
+            padding: 16px;
+            text-align: left;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        td {
+            padding: 14px 16px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        tr:hover {
+            background: rgba(198, 179, 131, 0.05);
+        }
+
+        /* Responsive grid */
+        .grid-responsive {
+            display: grid;
+            gap: 20px;
+        }
+
+        @media (min-width: 640px) {
+            .grid-responsive { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        @media (min-width: 1024px) {
+            .grid-responsive { grid-template-columns: repeat(4, 1fr); }
+        }
+
+        /* Badge styles */
+        .badge {
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            display: inline-block;
+        }
+
+        .badge-success { background: #D1FAE5; color: #065F46; }
+        .badge-warning { background: #FEF3C7; color: #92400E; }
+        .badge-danger { background: #FEE2E2; color: #991B1B; }
+        .badge-info { background: #DBEAFE; color: #1E40AF; }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            max-width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        @media (min-width: 768px) {
+            .modal-content {
+                max-width: 600px;
+            }
+        }
+
+        /* Loading spinner */
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid var(--vamo-gold);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Search & Filters */
+        .search-input {
+            padding: 12px 16px;
+            border: 2px solid #E5E7EB;
+            border-radius: 10px;
+            width: 100%;
+            transition: all 0.3s ease;
+            font-size: 14px;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--vamo-gold);
+            box-shadow: 0 0 0 3px rgba(198, 179, 131, 0.1);
+        }
+
+        /* Status indicator */
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 6px;
+        }
+
+        .status-dot.online { background: #10B981; }
+        .status-dot.offline { background: #EF4444; }
+        .status-dot.pending { background: #F59E0B; }
+
+        /* Overlay pour mobile menu */
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 999;
+        }
+
+        .sidebar-overlay.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Sidebar Overlay (Mobile) -->
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+    <!-- SIDEBAR -->
+    <div class="sidebar" id="sidebar">
+        <div class="p-6 border-b border-gray-200">
+            <h1 class="text-2xl font-bold" style="color: var(--vamo-gold);">VAMO ADMIN</h1>
+            <p class="text-sm text-gray-600 mt-1">Centre de Contrôle</p>
+        </div>
+
+        <nav class="py-4">
+            <a class="nav-item active" onclick="showPage('dashboard')">
+                <span class="nav-icon">📊</span>
+                <span>Dashboard</span>
+            </a>
+            <a class="nav-item" onclick="showPage('clients')">
+                <span class="nav-icon">👥</span>
+                <span>Clients</span>
+            </a>
+            <a class="nav-item" onclick="showPage('chauffeurs')">
+                <span class="nav-icon">🚗</span>
+                <span>Chauffeurs</span>
+            </a>
+            <a class="nav-item" onclick="showPage('livreurs')">
+                <span class="nav-icon">🏍️</span>
+                <span>Livreurs</span>
+            </a>
+            <a class="nav-item" onclick="showPage('courses')">
+                <span class="nav-icon">🚕</span>
+                <span>Courses</span>
+            </a>
+            <a class="nav-item" onclick="showPage('livraisons')">
+                <span class="nav-icon">📦</span>
+                <span>Livraisons</span>
+            </a>
+            <a class="nav-item" onclick="showPage('finances')">
+                <span class="nav-icon">💰</span>
+                <span>Finances</span>
+            </a>
+            <a class="nav-item" onclick="showPage('map')">
+                <span class="nav-icon">🗺️</span>
+                <span>Map Temps Réel</span>
+            </a>
+            <a class="nav-item" onclick="showPage('analytics')">
+                <span class="nav-icon">📈</span>
+                <span>Analytics</span>
+            </a>
+            <a class="nav-item" onclick="showPage('messages')">
+                <span class="nav-icon">💬</span>
+                <span>Messages</span>
+            </a>
+            <a class="nav-item" onclick="showPage('settings')">
+                <span class="nav-icon">⚙️</span>
+                <span>Paramètres</span>
+            </a>
+        </nav>
+
+        <div class="absolute bottom-4 left-4 right-4">
+            <div class="flex items-center justify-between text-sm text-gray-600">
+                <span>Statut:</span>
+                <div class="flex items-center">
+                    <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse mr-2"></div>
+                    <span>En ligne</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div class="main-content">
+        <!-- Header -->
+        <div class="card mb-6 p-4">
+            <div class="flex justify-between items-center flex-wrap gap-4">
+                <div class="flex items-center gap-3">
+                    <button class="mobile-menu-btn" onclick="toggleSidebar()">
+                        ☰
+                    </button>
+                    <div>
+                        <h2 id="pageTitle" class="text-xl md:text-2xl font-bold" style="color: var(--vamo-gold);">
+                            Dashboard Principal
+                        </h2>
+                        <p class="text-sm text-gray-600 mt-1" id="pageSubtitle">
+                            Vue d'ensemble temps réel
+                        </p>
+                    </div>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="refreshData()" class="btn-primary text-sm">
+                        <span class="hidden sm:inline">♻️ Actualiser</span>
+                        <span class="sm:hidden">♻️</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- DASHBOARD PAGE -->
+        <div id="page-dashboard" class="page-section active">
+            <!-- Stats Grid -->
+            <div class="grid-responsive mb-6">
+                <div class="stat-card">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-600 text-xs font-semibold uppercase">Clients</p>
+                            <p id="stat-clients" class="text-3xl font-bold mt-2">0</p>
+                            <p class="text-xs text-gray-500 mt-1">Total inscrits</p>
+                        </div>
+                        <div class="text-4xl">👥</div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-600 text-xs font-semibold uppercase">Chauffeurs</p>
+                            <p id="stat-chauffeurs" class="text-3xl font-bold mt-2">0</p>
+                            <p class="text-xs text-green-600 mt-1">
+                                <span class="status-dot online"></span>
+                                <span id="chauffeurs-online">0</span> en ligne
+                            </p>
+                        </div>
+                        <div class="text-4xl">🚗</div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-600 text-xs font-semibold uppercase">Courses Actives</p>
+                            <p id="stat-courses-actives" class="text-3xl font-bold mt-2" style="color: var(--vamo-gold);">0</p>
+                            <p class="text-xs text-gray-500 mt-1">En ce moment</p>
+                        </div>
+                        <div class="text-4xl">🚕</div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-600 text-xs font-semibold uppercase">Revenus Jour</p>
+                            <p id="stat-revenus-jour" class="text-3xl font-bold mt-2" style="color: var(--vamo-gold);">0 CFA</p>
+                            <p class="text-xs text-gray-500 mt-1">Aujourd'hui</p>
+                        </div>
+                        <div class="text-4xl">💰</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                <div class="card p-6">
+                    <h3 class="text-lg font-bold mb-4" style="color: var(--vamo-gold);">
+                        📊 Revenus 7 derniers jours
+                    </h3>
+                    <div style="height: 300px; position: relative;">
+                        <canvas id="revenusChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="card p-6">
+                    <h3 class="text-lg font-bold mb-4" style="color: var(--vamo-gold);">
+                        📈 Courses vs Livraisons
+                    </h3>
+                    <div style="height: 300px; position: relative;">
+                        <canvas id="activityChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Activity -->
+            <div class="card p-6">
+                <h3 class="text-lg font-bold mb-4" style="color: var(--vamo-gold);">
+                    🕐 Activité Récente
+                </h3>
+                <div id="recentActivity" class="space-y-3">
+                    <p class="text-gray-500 text-sm text-center py-8">Chargement...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- CLIENTS PAGE -->
+        <div id="page-clients" class="page-section">
+            <!-- Search & Filters -->
+            <div class="card p-6 mb-6">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <input type="text" id="searchClients" placeholder="Rechercher client..."
+                           class="search-input" onkeyup="searchClients()">
+                    <select id="filterClientsStatus" class="search-input" onchange="searchClients()">
+                        <option value="">Tous</option>
+                        <option value="actif">Actifs</option>
+                        <option value="inactif">Inactifs</option>
+                    </select>
+                    <input type="date" id="filterClientsDate" class="search-input" onchange="searchClients()">
+                    <button onclick="loadClients()" class="btn-primary">
+                        <span class="hidden sm:inline">🔍 Rechercher</span>
+                        <span class="sm:hidden">🔍</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Clients Table -->
+            <div class="card p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-bold" style="color: var(--vamo-gold);">
+                        Liste des Clients
+                    </h3>
+                    <button onclick="exportClients()" class="btn-secondary text-sm">
+                        📥 Exporter
+                    </button>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Nom Complet</th>
+                                <th>Téléphone</th>
+                                <th>Courses</th>
+                                <th>Total Dépensé</th>
+                                <th>Inscription</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="clientsTableBody">
+                            <tr>
+                                <td colspan="7" class="text-center py-8 text-gray-500">
+                                    Chargement...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="flex justify-between items-center mt-4">
+                    <p class="text-sm text-gray-600">
+                        Total: <span id="clientsTotal" class="font-bold">0</span> clients
+                    </p>
+                    <div class="flex gap-2">
+                        <button onclick="prevPageClients()" class="btn-secondary text-sm">← Précédent</button>
+                        <button onclick="nextPageClients()" class="btn-secondary text-sm">Suivant →</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CHAUFFEURS PAGE (améliorer existant) -->
+        <div id="page-chauffeurs" class="page-section">
+            <div class="card p-6 mb-6">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <input type="text" id="searchChauffeurs" placeholder="Rechercher chauffeur..." class="search-input">
+                    <select id="filterChauffeurStatus" class="search-input">
+                        <option value="">Tous statuts</option>
+                        <option value="en_attente">En attente</option>
+                        <option value="approuve">Approuvé</option>
+                        <option value="rejete">Rejeté</option>
+                    </select>
+                    <select id="filterChauffeurDispo" class="search-input">
+                        <option value="">Toutes disponibilités</option>
+                        <option value="true">En ligne</option>
+                        <option value="false">Hors ligne</option>
+                    </select>
+                    <button onclick="loadChauffeurs()" class="btn-primary">
+                        🔍 Rechercher
+                    </button>
+                </div>
+            </div>
+
+            <div class="card p-6">
+                <h3 class="text-lg font-bold mb-4" style="color: var(--vamo-gold);">
+                    Liste des Chauffeurs
+                </h3>
+                <div id="chauffeursContent">
+                    <p class="text-center py-8 text-gray-500">Chargement...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- LIVREURS PAGE (similaire) -->
+        <div id="page-livreurs" class="page-section">
+            <div class="card p-6 mb-6">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <input type="text" id="searchLivreurs" placeholder="Rechercher livreur..." class="search-input">
+                    <select id="filterLivreurStatus" class="search-input">
+                        <option value="">Tous statuts</option>
+                        <option value="en_attente">En attente</option>
+                        <option value="approuve">Approuvé</option>
+                        <option value="rejete">Rejeté</option>
+                    </select>
+                    <select id="filterLivreurDispo" class="search-input">
+                        <option value="">Toutes disponibilités</option>
+                        <option value="true">En ligne</option>
+                        <option value="false">Hors ligne</option>
+                    </select>
+                    <button onclick="loadLivreurs()" class="btn-primary">
+                        🔍 Rechercher
+                    </button>
+                </div>
+            </div>
+
+            <div class="card p-6">
+                <h3 class="text-lg font-bold mb-4" style="color: var(--vamo-gold);">
+                    Liste des Livreurs
+                </h3>
+                <div id="livreursContent">
+                    <p class="text-center py-8 text-gray-500">Chargement...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- COURSES PAGE -->
+        <div id="page-courses" class="page-section">
+            <div class="card p-6 mb-6">
+                <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+                    <input type="text" id="searchCourses" placeholder="Rechercher course..." class="search-input">
+                    <select id="filterCoursesStatus" class="search-input">
+                        <option value="">Tous statuts</option>
+                        <option value="en_attente">En attente</option>
+                        <option value="en_cours">En cours</option>
+                        <option value="terminee">Terminée</option>
+                        <option value="annulee">Annulée</option>
+                    </select>
+                    <input type="date" id="filterCoursesDate" class="search-input">
+                    <input type="text" id="filterCoursesClient" placeholder="Client..." class="search-input">
+                    <button onclick="loadCourses()" class="btn-primary">
+                        🔍 Rechercher
+                    </button>
+                </div>
+            </div>
+
+            <div class="card p-6">
+                <h3 class="text-lg font-bold mb-4" style="color: var(--vamo-gold);">
+                    Liste des Courses
+                </h3>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Client</th>
+                                <th>Chauffeur</th>
+                                <th>Trajet</th>
+                                <th>Prix</th>
+                                <th>Statut</th>
+                                <th>Date</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="coursesTableBody">
+                            <tr>
+                                <td colspan="8" class="text-center py-8 text-gray-500">
+                                    Chargement...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- LIVRAISONS PAGE -->
+        <div id="page-livraisons" class="page-section">
+            <div class="card p-6 mb-6">
+                <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+                    <input type="text" id="searchLivraisons" placeholder="Rechercher livraison..." class="search-input">
+                    <select id="filterLivraisonsStatus" class="search-input">
+                        <option value="">Tous statuts</option>
+                        <option value="en_attente">En attente</option>
+                        <option value="en_cours">En cours</option>
+                        <option value="livree">Livrée</option>
+                        <option value="annulee">Annulée</option>
+                    </select>
+                    <select id="filterLivraisonsType" class="search-input">
+                        <option value="">Tous types</option>
+                        <option value="express">Express</option>
+                        <option value="flex">Flex</option>
+                    </select>
+                    <input type="date" id="filterLivraisonsDate" class="search-input">
+                    <button onclick="loadLivraisons()" class="btn-primary">
+                        🔍 Rechercher
+                    </button>
+                </div>
+            </div>
+
+            <div class="card p-6">
+                <h3 class="text-lg font-bold mb-4" style="color: var(--vamo-gold);">
+                    Liste des Livraisons
+                </h3>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Client</th>
+                                <th>Livreur</th>
+                                <th>Destinataire</th>
+                                <th>Taille</th>
+                                <th>Type</th>
+                                <th>Prix</th>
+                                <th>Statut</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="livraisonsTableBody">
+                            <tr>
+                                <td colspan="9" class="text-center py-8 text-gray-500">
+                                    Chargement...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- FINANCES PAGE -->
+        <div id="page-finances" class="page-section">
+            <!-- Summary Cards -->
+            <div class="grid-responsive mb-6">
+                <div class="stat-card">
+                    <p class="text-gray-600 text-xs font-semibold uppercase">Revenus Courses</p>
+                    <p id="finance-courses" class="text-2xl font-bold mt-2" style="color: var(--vamo-gold);">0 CFA</p>
+                    <p class="text-xs text-gray-500 mt-1">Ce mois</p>
+                </div>
+                <div class="stat-card">
+                    <p class="text-gray-600 text-xs font-semibold uppercase">Revenus Livraisons</p>
+                    <p id="finance-livraisons" class="text-2xl font-bold mt-2" style="color: var(--vamo-gold);">0 CFA</p>
+                    <p class="text-xs text-gray-500 mt-1">Ce mois</p>
+                </div>
+                <div class="stat-card">
+                    <p class="text-gray-600 text-xs font-semibold uppercase">Total Revenus</p>
+                    <p id="finance-total" class="text-3xl font-bold mt-2" style="color: var(--vamo-gold);">0 CFA</p>
+                    <p class="text-xs text-gray-500 mt-1">Ce mois</p>
+                </div>
+                <div class="stat-card">
+                    <p class="text-gray-600 text-xs font-semibold uppercase">Commissions Dues</p>
+                    <p id="finance-commissions" class="text-2xl font-bold mt-2 text-orange-600">0 CFA</p>
+                    <p class="text-xs text-gray-500 mt-1">À payer</p>
+                </div>
+            </div>
+
+            <!-- Charts -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                <div class="card p-6">
+                    <h3 class="text-lg font-bold mb-4" style="color: var(--vamo-gold);">
+                        💰 Évolution Revenus
+                    </h3>
+                    <div style="height: 300px; position: relative;">
+                        <canvas id="financeChart"></canvas>
+                    </div>
+                </div>
+                <div class="card p-6">
+                    <h3 class="text-lg font-bold mb-4" style="color: var(--vamo-gold);">
+                        📊 Répartition Paiements
+                    </h3>
+                    <div style="height: 300px; position: relative;">
+                        <canvas id="paymentsChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Paiements Table -->
+            <div class="card p-6">
+                <h3 class="text-lg font-bold mb-4" style="color: var(--vamo-gold);">
+                    Derniers Paiements
+                </h3>
+                <div id="paymentsContent">
+                    <p class="text-center py-8 text-gray-500">Chargement...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- MAP PAGE -->
+        <div id="page-map" class="page-section">
+            <div class="card p-6">
+                <h3 class="text-lg font-bold mb-4" style="color: var(--vamo-gold);">
+                    🗺️ Suivi GPS Temps Réel
+                </h3>
+                <div class="mb-4 flex gap-2 flex-wrap">
+                    <button onclick="showMapLayer('chauffeurs')" class="btn-secondary text-sm">
+                        🚗 Chauffeurs
+                    </button>
+                    <button onclick="showMapLayer('livreurs')" class="btn-secondary text-sm">
+                        🏍️ Livreurs
+                    </button>
+                    <button onclick="showMapLayer('courses')" class="btn-secondary text-sm">
+                        🚕 Courses Actives
+                    </button>
+                    <button onclick="showMapLayer('all')" class="btn-primary text-sm">
+                        Tout Afficher
+                    </button>
+                </div>
+                <div id="mapContainer" class="bg-gray-100 rounded-lg" style="height: 600px;">
+                    <p class="text-center py-20 text-gray-500">
+                        🗺️ Map interactive Google Maps<br>
+                        <span class="text-sm">(Nécessite intégration Google Maps API)</span>
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ANALYTICS PAGE -->
+        <div id="page-analytics" class="page-section">
+            <div class="grid-responsive mb-6">
+                <div class="stat-card">
+                    <p class="text-gray-600 text-xs font-semibold uppercase">Taux Conversion</p>
+                    <p class="text-3xl font-bold mt-2" style="color: var(--vamo-gold);">87%</p>
+                </div>
+                <div class="stat-card">
+                    <p class="text-gray-600 text-xs font-semibold uppercase">Taux Annulation</p>
+                    <p class="text-3xl font-bold mt-2 text-red-600">5.2%</p>
+                </div>
+                <div class="stat-card">
+                    <p class="text-gray-600 text-xs font-semibold uppercase">Note Moyenne</p>
+                    <p class="text-3xl font-bold mt-2" style="color: var(--vamo-gold);">4.6 ⭐</p>
+                </div>
+                <div class="stat-card">
+                    <p class="text-gray-600 text-xs font-semibold uppercase">Clients Actifs</p>
+                    <p class="text-3xl font-bold mt-2">1,234</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="card p-6">
+                    <h3 class="text-lg font-bold mb-4" style="color: var(--vamo-gold);">
+                        📊 Top 10 Clients
+                    </h3>
+                    <div id="topClientsContent">
+                        <p class="text-center py-8 text-gray-500">Chargement...</p>
+                    </div>
+                </div>
+
+                <div class="card p-6">
+                    <h3 class="text-lg font-bold mb-4" style="color: var(--vamo-gold);">
+                        🏆 Top 10 Chauffeurs
+                    </h3>
+                    <div id="topChauffeursContent">
+                        <p class="text-center py-8 text-gray-500">Chargement...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MESSAGES PAGE -->
+        <div id="page-messages" class="page-section">
+            <div class="card p-6">
+                <h3 class="text-lg font-bold mb-4" style="color: var(--vamo-gold);">
+                    💬 Messages & Support
+                </h3>
+                <div id="messagesContent">
+                    <p class="text-center py-8 text-gray-500">
+                        Fonctionnalité en cours de développement
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- SETTINGS PAGE -->
+        <div id="page-settings" class="page-section">
+            <div class="card p-6">
+                <h3 class="text-lg font-bold mb-4" style="color: var(--vamo-gold);">
+                    ⚙️ Paramètres Système
+                </h3>
+
+                <div class="space-y-6">
+                    <div>
+                        <h4 class="font-semibold mb-3">🎯 Tarification</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="text-sm text-gray-600">Prix/km Vamo</label>
+                                <input type="number" class="search-input mt-1" value="70">
+                            </div>
+                            <div>
+                                <label class="text-sm text-gray-600">Prix/km Comfort</label>
+                                <input type="number" class="search-input mt-1" value="90">
+                            </div>
+                            <div>
+                                <label class="text-sm text-gray-600">Prix/km Express</label>
+                                <input type="number" class="search-input mt-1" value="100">
+                            </div>
+                            <div>
+                                <label class="text-sm text-gray-600">Prix/km Flex</label>
+                                <input type="number" class="search-input mt-1" value="80">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h4 class="font-semibold mb-3">🔔 Notifications</h4>
+                        <button onclick="testNotification()" class="btn-secondary">
+                            Tester Notification
+                        </button>
+                    </div>
+
+                    <div>
+                        <h4 class="font-semibold mb-3">🛠️ Outils</h4>
+                        <div class="flex gap-2 flex-wrap">
+                            <button onclick="testBackendConnection()" class="btn-secondary">
+                                Test Connexion Backend
+                            </button>
+                            <button onclick="exportAllData()" class="btn-secondary">
+                                Export Données Complètes
+                            </button>
+                            <button onclick="clearCache()" class="btn-secondary">
+                                Vider Cache
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Modal pour détails -->
+    <div id="detailsModal" class="modal">
+        <div class="modal-content">
+            <div class="flex justify-between items-center mb-4">
+                <h3 id="modalTitle" class="text-xl font-bold" style="color: var(--vamo-gold);"></h3>
+                <button onclick="closeModal()" class="text-gray-500 hover:text-gray-700 text-2xl">×</button>
+            </div>
+            <div id="modalContent">
+                <!-- Content will be injected here -->
+            </div>
+        </div>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="dashboard-functions.js"></script>
+</body>
+</html>

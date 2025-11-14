@@ -1,0 +1,1669 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vamo Admin - Back Office</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        :root {
+            --vamo-gold: #C6B383;
+            --vamo-gold-light: #D4C096;
+            --vamo-gold-dark: #B8A170;
+            --vamo-white: #FFFFFF;
+            --vamo-dark: #2C2C2C;
+            --card-bg: rgba(255, 255, 255, 0.95);
+            --glass-border: rgba(198, 179, 131, 0.3);
+            --border-radius-sm: 8px;
+            --border-radius-md: 12px;
+            --border-radius-lg: 16px;
+            --border-radius-xl: 20px;
+            --border-radius-2xl: 24px;
+            --transition-fast: 0.2s ease;
+            --transition-normal: 0.3s ease;
+            --transition-slow: 0.5s ease;
+        }
+
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background: 
+                radial-gradient(circle at 20% 50%, rgba(198, 179, 131, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(198, 179, 131, 0.15) 0%, transparent 50%),
+                linear-gradient(135deg, #F8F7F4 0%, #FDFCF8 50%, #F5F0E6 100%);
+            min-height: 100vh;
+            overflow-x: hidden;
+            color: var(--vamo-dark);
+            scroll-behavior: smooth;
+        }
+
+        .command-center {
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--border-radius-xl);
+            box-shadow: 
+                0 8px 32px rgba(198, 179, 131, 0.15),
+                inset 0 1px 0 rgba(255, 255, 255, 0.8);
+            transition: all var(--transition-normal);
+        }
+
+        .command-center:hover {
+            transform: translateY(-2px);
+            box-shadow: 
+                0 12px 40px rgba(198, 179, 131, 0.25),
+                inset 0 1px 0 rgba(255, 255, 255, 0.9);
+        }
+
+        .vamo-text {
+            font-family: 'Inter', sans-serif;
+            font-weight: 700;
+            color: var(--vamo-gold);
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, 
+                rgba(198, 179, 131, 0.1) 0%, 
+                rgba(255, 255, 255, 0.8) 50%, 
+                rgba(198, 179, 131, 0.15) 100%);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--border-radius-xl);
+            backdrop-filter: blur(15px);
+            transition: all var(--transition-normal);
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, 
+                transparent, 
+                rgba(198, 179, 131, 0.2), 
+                transparent);
+            transition: left 0.5s;
+        }
+
+        .stat-card:hover::before {
+            left: 100%;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-8px) scale(1.03);
+            box-shadow: 
+                0 15px 40px rgba(198, 179, 131, 0.35),
+                0 0 60px rgba(198, 179, 131, 0.25);
+        }
+
+        .stat-card:active {
+            transform: translateY(-4px) scale(1.01);
+            transition: all var(--transition-fast);
+        }
+
+        .btn-vamo {
+            background: linear-gradient(135deg, var(--vamo-gold), var(--vamo-gold-dark));
+            border: none;
+            border-radius: var(--border-radius-lg);
+            font-family: 'Inter', sans-serif;
+            font-weight: 600;
+            color: white;
+            transition: all var(--transition-normal);
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(198, 179, 131, 0.3);
+        }
+
+        .btn-vamo::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, 
+                transparent, 
+                rgba(255, 255, 255, 0.3), 
+                transparent);
+            transition: left 0.3s;
+        }
+
+        .btn-vamo:hover::before {
+            left: 100%;
+        }
+
+        .btn-vamo:hover {
+            transform: translateY(-3px);
+            box-shadow: 
+                0 12px 30px rgba(198, 179, 131, 0.5),
+                0 0 40px rgba(198, 179, 131, 0.4);
+        }
+
+        .btn-vamo:active {
+            transform: translateY(-1px);
+            transition: all var(--transition-fast);
+        }
+
+        .modal-futuristic {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(10px);
+        }
+
+        .modal-futuristic.show {
+            display: flex;
+            animation: modalAppear 0.3s ease-out;
+        }
+
+        @keyframes modalAppear {
+            from {
+                opacity: 0;
+                transform: scale(0.8);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .modal-content-futuristic {
+            background: var(--card-bg);
+            border: 2px solid var(--vamo-gold);
+            border-radius: var(--border-radius-2xl);
+            box-shadow: 
+                0 0 50px rgba(198, 179, 131, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.8);
+            max-width: 90vw;
+            max-height: 90vh;
+            overflow-y: auto;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateY(-50px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes fadeInUp {
+            from {
+                transform: translateY(30px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes pulseGlow {
+            0%, 100% {
+                box-shadow: 0 0 20px rgba(198, 179, 131, 0.3);
+            }
+            50% {
+                box-shadow: 0 0 30px rgba(198, 179, 131, 0.6);
+            }
+        }
+
+        .animate-fade-in-up {
+            animation: fadeInUp 0.6s ease-out;
+        }
+
+        .animate-pulse-glow {
+            animation: pulseGlow 2s ease-in-out infinite;
+        }
+
+        .status-badge-futuristic {
+            font-family: 'Orbitron', monospace;
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            padding: 0.4rem 1rem;
+            border-radius: var(--border-radius-xl);
+            border: 1px solid;
+            backdrop-filter: blur(10px);
+            transition: all var(--transition-normal);
+            cursor: pointer;
+        }
+
+        .status-badge-futuristic:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .status-en-attente { 
+            background: rgba(198, 179, 131, 0.2); 
+            color: var(--vamo-gold-dark); 
+            border-color: var(--vamo-gold);
+        }
+        .status-approuve { 
+            background: rgba(0, 255, 0, 0.2); 
+            color: #00ff00; 
+            border-color: #00ff00;
+            text-shadow: 0 0 10px #00ff00;
+        }
+        .status-rejete { 
+            background: rgba(255, 0, 0, 0.2); 
+            color: #ff0040; 
+            border-color: #ff0040;
+            text-shadow: 0 0 10px #ff0040;
+        }
+        .status-suspendu { 
+            background: rgba(255, 165, 0, 0.2); 
+            color: #ff6500; 
+            border-color: #ff6500;
+            text-shadow: 0 0 10px #ff6500;
+        }
+
+        .floating-particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .particle {
+            position: absolute;
+            width: 2px;
+            height: 2px;
+            background: var(--vamo-gold);
+            animation: float 20s infinite linear;
+            opacity: 0.2;
+        }
+
+        @keyframes float {
+            0% {
+                transform: translateY(100vh) rotate(0deg);
+                opacity: 0;
+            }
+            10% {
+                opacity: 0.3;
+            }
+            90% {
+                opacity: 0.3;
+            }
+            100% {
+                transform: translateY(-100px) rotate(360deg);
+                opacity: 0;
+            }
+        }
+
+        .data-table {
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--border-radius-xl);
+            overflow: hidden;
+            transition: all var(--transition-normal);
+        }
+
+        .data-table:hover {
+            box-shadow: 0 8px 25px rgba(198, 179, 131, 0.15);
+        }
+
+        .data-table th {
+            background: rgba(198, 179, 131, 0.1);
+            color: var(--vamo-gold-dark);
+            font-family: 'Inter', sans-serif;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .data-table tr:hover {
+            background: rgba(198, 179, 131, 0.05);
+        }
+
+        .hidden { display: none !important; }
+
+        .search-container {
+            position: relative;
+        }
+
+        .search-input {
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid var(--vamo-gold);
+            border-radius: var(--border-radius-lg);
+            color: var(--vamo-dark);
+            padding: 0.75rem 1rem 0.75rem 3rem;
+            font-family: 'Inter', sans-serif;
+            transition: all var(--transition-normal);
+        }
+
+        .search-input:focus {
+            outline: none;
+            box-shadow: 0 0 20px rgba(198, 179, 131, 0.5);
+            transform: scale(1.02);
+            border-color: var(--vamo-gold-dark);
+        }
+
+        .search-input:hover {
+            border-color: var(--vamo-gold-dark);
+            box-shadow: 0 0 10px rgba(198, 179, 131, 0.3);
+        }
+
+        .chart-container {
+            background: var(--card-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--border-radius-xl);
+            backdrop-filter: blur(20px);
+            transition: all var(--transition-normal);
+            overflow: hidden;
+        }
+
+        .chart-container:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(198, 179, 131, 0.2);
+        }
+
+        /* SIDEBAR NAVIGATION */
+        .sidebar {
+            width: 280px;
+            min-height: 100vh;
+            background: linear-gradient(180deg, var(--vamo-white) 0%, #F8F7F4 100%);
+            border-right: 1px solid var(--glass-border);
+            border-radius: 0 var(--border-radius-xl) var(--border-radius-xl) 0;
+            box-shadow: 4px 0 15px rgba(198, 179, 131, 0.1);
+            position: fixed;
+            left: 0;
+            top: 0;
+            z-index: 1000;
+            transition: all var(--transition-normal);
+        }
+
+        /* RESPONSIVE DESIGN */
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(-100%);
+                border-radius: 0 var(--border-radius-xl) var(--border-radius-xl) 0;
+                z-index: 2000;
+            }
+            
+            .sidebar.mobile-open {
+                transform: translateX(0);
+            }
+            
+            .main-content {
+                margin-left: 0;
+            }
+            
+            .mobile-overlay {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.5);
+                z-index: 1500;
+                opacity: 0;
+                pointer-events: none;
+                transition: opacity var(--transition-normal);
+            }
+            
+            .mobile-overlay.active {
+                opacity: 1;
+                pointer-events: all;
+            }
+        }
+
+        /* MENU HAMBURGER */
+        .mobile-menu-btn {
+            display: none;
+            background: var(--vamo-gold);
+            border: none;
+            border-radius: var(--border-radius-md);
+            padding: 0.75rem;
+            color: white;
+            font-size: 1.25rem;
+            cursor: pointer;
+            transition: all var(--transition-normal);
+            box-shadow: 0 4px 15px rgba(198, 179, 131, 0.3);
+        }
+
+        .mobile-menu-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 20px rgba(198, 179, 131, 0.4);
+        }
+
+        @media (max-width: 768px) {
+            .mobile-menu-btn {
+                display: block;
+            }
+        }
+
+        .sidebar-logo {
+            padding: 2rem 1.5rem;
+            border-bottom: 1px solid var(--glass-border);
+            background: var(--vamo-gold);
+            color: white;
+        }
+
+        .sidebar-nav {
+            padding: 1rem 0;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            padding: 1rem 1.5rem;
+            color: var(--vamo-dark);
+            text-decoration: none;
+            transition: all var(--transition-normal);
+            border-left: 3px solid transparent;
+            border-radius: 0 var(--border-radius-lg) var(--border-radius-lg) 0;
+            margin: 0.25rem 0;
+            cursor: pointer;
+        }
+
+        .nav-item:hover {
+            background: rgba(198, 179, 131, 0.1);
+            border-left-color: var(--vamo-gold);
+            transform: translateX(5px);
+            box-shadow: 0 2px 10px rgba(198, 179, 131, 0.2);
+        }
+
+        .nav-item.active {
+            background: rgba(198, 179, 131, 0.15);
+            border-left-color: var(--vamo-gold);
+            color: var(--vamo-gold-dark);
+            font-weight: 600;
+            transform: translateX(3px);
+            box-shadow: 0 2px 15px rgba(198, 179, 131, 0.3);
+        }
+
+        .nav-icon {
+            width: 20px;
+            height: 20px;
+            margin-right: 12px;
+            font-size: 1.2rem;
+        }
+
+        .main-content {
+            margin-left: 280px;
+            min-height: 100vh;
+            background: #FAFAFA;
+        }
+
+        .page-header {
+            background: var(--vamo-white);
+            border-bottom: 1px solid var(--glass-border);
+            border-radius: 0 0 var(--border-radius-xl) var(--border-radius-xl);
+            padding: 1.5rem 2rem;
+            box-shadow: 0 2px 8px rgba(198, 179, 131, 0.1);
+            transition: all var(--transition-normal);
+        }
+
+        .page-content {
+            padding: 2rem;
+        }
+
+        .page-section {
+            display: none;
+        }
+
+        .page-section.active {
+            display: block;
+        }
+
+        /* RESPONSIVE TABLES */
+        @media (max-width: 768px) {
+            .data-table {
+                margin: 0 -1rem;
+                border-radius: var(--border-radius-md);
+            }
+            
+            .data-table table {
+                font-size: 0.875rem;
+            }
+            
+            .data-table th,
+            .data-table td {
+                padding: 0.75rem 0.5rem;
+            }
+            
+            /* Stack cards on mobile */
+            .mobile-card-view {
+                display: block;
+            }
+            
+            .mobile-card-view table {
+                display: none;
+            }
+            
+            .mobile-card {
+                background: var(--card-bg);
+                border: 1px solid var(--glass-border);
+                border-radius: var(--border-radius-lg);
+                margin-bottom: 1rem;
+                padding: 1rem;
+                box-shadow: 0 2px 8px rgba(198, 179, 131, 0.1);
+                transition: all var(--transition-normal);
+            }
+            
+            .mobile-card:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 4px 15px rgba(198, 179, 131, 0.2);
+            }
+            
+            /* Statistics grid responsive */
+            .stats-grid {
+                grid-template-columns: 1fr 1fr;
+                gap: 1rem;
+            }
+            
+            .stat-card {
+                padding: 1rem;
+            }
+            
+            .stat-card .text-3xl {
+                font-size: 1.5rem;
+            }
+            
+            /* Page content responsive */
+            .page-content {
+                padding: 1rem;
+            }
+            
+            .page-header {
+                padding: 1rem;
+            }
+            
+            .page-header h1 {
+                font-size: 1.5rem;
+            }
+            
+            /* Search container responsive */
+            .search-grid {
+                grid-template-columns: 1fr;
+                gap: 0.75rem;
+            }
+            
+            .search-grid .btn-vamo {
+                padding: 0.75rem;
+                font-size: 0.875rem;
+            }
+        }
+
+        /* ENHANCED ELEGANT STYLES */
+        .elegant-gradient {
+            background: linear-gradient(135deg, 
+                rgba(198, 179, 131, 0.05) 0%, 
+                rgba(255, 255, 255, 0.95) 25%, 
+                rgba(198, 179, 131, 0.08) 50%,
+                rgba(255, 255, 255, 0.9) 75%,
+                rgba(198, 179, 131, 0.1) 100%);
+        }
+
+        .elegant-shadow {
+            box-shadow: 
+                0 8px 32px rgba(198, 179, 131, 0.12),
+                0 2px 8px rgba(0, 0, 0, 0.04),
+                inset 0 1px 0 rgba(255, 255, 255, 0.9);
+        }
+
+        .elegant-border {
+            border: 1px solid;
+            border-image: linear-gradient(135deg, 
+                rgba(198, 179, 131, 0.3),
+                rgba(198, 179, 131, 0.1),
+                rgba(198, 179, 131, 0.3)) 1;
+        }
+
+        /* REFINED ANIMATIONS */
+        @keyframes elegantSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(30px) scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        @keyframes elegantPulse {
+            0%, 100% {
+                box-shadow: 0 0 20px rgba(198, 179, 131, 0.2);
+                transform: scale(1);
+            }
+            50% {
+                box-shadow: 0 0 30px rgba(198, 179, 131, 0.4);
+                transform: scale(1.02);
+            }
+        }
+
+        .animate-elegant-slide {
+            animation: elegantSlideIn 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .animate-elegant-pulse {
+            animation: elegantPulse 3s ease-in-out infinite;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Particules flottantes -->
+    <div class="floating-particles" id="particles"></div>
+
+    <!-- Mobile Overlay -->
+    <div class="mobile-overlay" id="mobileOverlay" onclick="closeMobileMenu()"></div>
+
+    <!-- SIDEBAR NAVIGATION -->
+    <div class="sidebar">
+        <!-- Logo -->
+        <div class="sidebar-logo">
+            <h1 class="text-xl font-bold">🚗 VAMO</h1>
+            <p class="text-sm opacity-90 mt-1">Back Office Admin</p>
+        </div>
+
+        <!-- Navigation -->
+        <nav class="sidebar-nav">
+            <a href="#" class="nav-item active" onclick="showPage('dashboard')">
+                <span class="nav-icon">📈</span>
+                <span>Tableau de Bord</span>
+            </a>
+            <a href="#" class="nav-item" onclick="showPage('chauffeurs')">
+                <span class="nav-icon">🚗</span>
+                <span>Chauffeurs</span>
+            </a>
+            <a href="#" class="nav-item" onclick="showPage('livreurs')">
+                <span class="nav-icon">🏍️</span>
+                <span>Livreurs</span>
+            </a>
+            <a href="#" class="nav-item" onclick="showPage('analytics')">
+                <span class="nav-icon">📊</span>
+                <span>Analytics</span>
+            </a>
+            <a href="#" class="nav-item" onclick="showPage('settings')">
+                <span class="nav-icon">⚙️</span>
+                <span>Paramètres</span>
+            </a>
+        </nav>
+
+        <!-- Status en bas -->
+        <div class="absolute bottom-4 left-4 right-4">
+            <div class="flex items-center justify-between text-sm text-gray-600">
+                <span>Statut:</span>
+                <div class="flex items-center">
+                    <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse mr-2"></div>
+                    <span>En ligne</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div class="main-content">
+        <!-- Page Header -->
+        <div class="page-header elegant-gradient elegant-shadow">
+            <div class="flex justify-between items-center">
+                <div class="flex items-center">
+                    <!-- Mobile Menu Button -->
+                    <button class="mobile-menu-btn mr-4" onclick="toggleMobileMenu()">
+                        <span id="menuIcon">☰</span>
+                    </button>
+                    <div>
+                        <h1 id="page-title" class="text-2xl font-bold" style="color: #C6B383;">Tableau de Bord</h1>
+                        <p id="page-subtitle" class="text-gray-600 mt-1">Vue d'ensemble des opérations Vamo</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <button onclick="refreshAllData()" class="btn-vamo text-white px-4 py-2 rounded-lg text-sm" id="refreshBtn">
+                        <span class="hidden sm:inline">♻️ Actualiser</span>
+                        <span class="sm:hidden">♻️</span>
+                    </button>
+                    <button onclick="initiateScanSequence()" class="btn-vamo text-white px-4 py-2 rounded-lg text-sm" id="scanBtn">
+                        <span class="hidden sm:inline">🔍 Analyse</span>
+                        <span class="sm:hidden">🔍</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Page Content -->
+        <div class="page-content">
+
+            <!-- PAGE: DASHBOARD -->
+            <div id="page-dashboard" class="page-section active">
+                            <!-- Statistics Grid -->
+            <div class="stats-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 animate-elegant-slide">
+                <div class="stat-card elegant-gradient elegant-shadow rounded-xl p-6 animate-elegant-pulse">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-600 text-sm font-semibold uppercase tracking-wider">CHAUFFEURS</p>
+                            <p id="stats-chauffeurs" class="text-3xl font-bold text-gray-800">0</p>
+                            <p class="text-xs text-gray-400 mt-1">
+                                Actifs: <span id="chauffeurs-actifs" class="text-green-400">0</span>
+                            </p>
+                        </div>
+                        <div class="text-4xl opacity-80">🚗</div>
+                    </div>
+                </div>
+
+                <div class="stat-card elegant-gradient elegant-shadow rounded-xl p-6">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-600 text-sm font-semibold uppercase tracking-wider">LIVREURS</p>
+                            <p id="stats-livreurs" class="text-3xl font-bold text-gray-800">0</p>
+                            <p class="text-xs text-gray-400 mt-1">
+                                En ligne: <span id="livreurs-actifs" class="text-green-400">0</span>
+                            </p>
+                        </div>
+                        <div class="text-4xl opacity-80">🏍️</div>
+                    </div>
+                </div>
+
+                <div class="stat-card elegant-gradient elegant-shadow rounded-xl p-6 animate-elegant-pulse">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-600 text-sm font-semibold uppercase tracking-wider">REVENUS/JOUR</p>
+                            <p id="stats-revenus" class="text-3xl font-bold" style="color: #C6B383;">0 CFA</p>
+                            <p class="text-xs text-gray-400 mt-1">
+                                Courses: <span id="courses-jour" class="text-green-400">0</span>
+                            </p>
+                        </div>
+                        <div class="text-4xl opacity-80">💰</div>
+                    </div>
+                </div>
+
+                <div class="stat-card elegant-gradient elegant-shadow rounded-xl p-6">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-600 text-sm font-semibold uppercase tracking-wider">EN ATTENTE</p>
+                            <p id="stats-attente" class="text-3xl font-bold text-gray-800">0</p>
+                            <p class="text-xs text-gray-400 mt-1">
+                                Validation requise
+                            </p>
+                        </div>
+                        <div class="text-4xl opacity-80">⏳</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Graphiques Analytics -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8 animate-fade-in-up" style="animation-delay: 0.2s;">
+                <div class="chart-container rounded-xl p-6">
+                    <h3 class="text-xl font-bold mb-4" style="color: #C6B383;">📊 REVENUS HEBDOMADAIRES (CFA)</h3>
+                    <canvas id="revenusChart" width="400" height="200"></canvas>
+                </div>
+                <div class="chart-container rounded-xl p-6">
+                    <h3 class="text-xl font-bold mb-4" style="color: #C6B383;">📈 ACTIVITÉ SYSTÈME</h3>
+                    <canvas id="activiteChart" width="400" height="200"></canvas>
+                </div>
+            </div>
+
+
+                </div>
+            </div>
+
+            <!-- PAGE: CHAUFFEURS -->
+            <div id="page-chauffeurs" class="page-section">
+
+                <!-- Centre de contrôle chauffeurs -->
+                <div class="command-center elegant-gradient elegant-shadow rounded-xl p-6 mb-8">
+                    <h3 class="text-xl font-bold mb-4" style="color: #C6B383;">🔍 CENTRE DE CONTRÔLE CHAUFFEURS</h3>
+                    <div class="search-grid grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div class="search-container">
+                            <input type="text" id="searchInputChauffeurs" placeholder="Rechercher chauffeur..." 
+                                   class="search-input w-full rounded-lg">
+                            <div class="absolute left-3 top-1/2 transform -translate-y-1/2" style="color: #C6B383;">🔍</div>
+                        </div>
+                        <select id="statusFilterChauffeurs" class="search-input rounded-lg">
+                            <option value="">Tous les statuts</option>
+                            <option value="en_attente">En attente</option>
+                            <option value="approuve">Approuvé</option>
+                            <option value="rejete">Rejeté</option>
+                            <option value="suspendu">Suspendu</option>
+                        </select>
+                        <select id="disponibiliteFilterChauffeurs" class="search-input rounded-lg">
+                            <option value="">Toutes disponibilités</option>
+                            <option value="true">En ligne</option>
+                            <option value="false">Hors ligne</option>
+                        </select>
+                        <button onclick="executeSearchChauffeurs()" class="btn-vamo text-white px-6 py-3 rounded-lg font-bold">
+                            <span class="hidden sm:inline">RECHERCHER</span>
+                            <span class="sm:hidden">🔍</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="data-table rounded-xl overflow-hidden">
+                <div class="p-6 border-b" style="border-color: rgba(198, 179, 131, 0.3);">
+                    <h3 class="text-2xl font-bold" style="color: #C6B383;">🚗 GESTION CHAUFFEURS</h3>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead>
+                            <tr class="border-b" style="border-color: rgba(198, 179, 131, 0.3);">
+                                <th class="px-6 py-4 text-left">ID</th>
+                                <th class="px-6 py-4 text-left">CHAUFFEUR</th>
+                                <th class="px-6 py-4 text-left">CONTACT</th>
+                                <th class="px-6 py-4 text-left">VÉHICULE</th>
+                                <th class="px-6 py-4 text-left">STATUT</th>
+                                <th class="px-6 py-4 text-left">REVENUS</th>
+                                <th class="px-6 py-4 text-left">ACTIONS</th>
+                            </tr>
+                        </thead>
+                        <tbody id="chauffeurs-tbody" class="divide-y" style="--tw-divide-opacity: 0.2; border-color: rgba(198, 179, 131, 0.2);">
+                            <tr>
+                                <td colspan="7" class="px-6 py-12 text-center" style="color: #C6B383;">
+                                    <div class="flex flex-col items-center">
+                                        <div class="animate-spin w-12 h-12 border-4 border-t-transparent rounded-full mb-4" style="border-color: #C6B383; border-top-color: transparent;"></div>
+                                        <p class="font-medium">Chargement des données chauffeurs...</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            </div>
+
+            <!-- PAGE: LIVREURS -->
+            <div id="page-livreurs" class="page-section">
+                <!-- Centre de contrôle livreurs -->
+                <div class="command-center rounded-xl p-6 mb-8">
+                    <h3 class="text-xl font-bold mb-4" style="color: #C6B383;">🔍 CENTRE DE CONTRÔLE LIVREURS</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div class="search-container">
+                            <input type="text" id="searchInputLivreurs" placeholder="Rechercher livreur..." 
+                                   class="search-input w-full rounded-lg">
+                            <div class="absolute left-3 top-1/2 transform -translate-y-1/2" style="color: #C6B383;">🔍</div>
+                        </div>
+                        <select id="statusFilterLivreurs" class="search-input rounded-lg">
+                            <option value="">Tous les statuts</option>
+                            <option value="en_attente">En attente</option>
+                            <option value="approuve">Approuvé</option>
+                            <option value="rejete">Rejeté</option>
+                            <option value="suspendu">Suspendu</option>
+                        </select>
+                        <select id="disponibiliteFilterLivreurs" class="search-input rounded-lg">
+                            <option value="">Toutes disponibilités</option>
+                            <option value="true">En ligne</option>
+                            <option value="false">Hors ligne</option>
+                        </select>
+                        <button onclick="executeSearchLivreurs()" class="btn-vamo text-white px-6 py-3 rounded-lg font-bold">
+                            RECHERCHER
+                        </button>
+                    </div>
+                </div>
+
+                <div class="data-table rounded-xl overflow-hidden">
+                <div class="p-6 border-b" style="border-color: rgba(198, 179, 131, 0.3);">
+                    <h3 class="text-2xl font-bold" style="color: #C6B383;">🏍️ GESTION LIVREURS</h3>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead>
+                            <tr class="border-b" style="border-color: rgba(198, 179, 131, 0.3);">
+                                <th class="px-6 py-4 text-left">ID</th>
+                                <th class="px-6 py-4 text-left">LIVREUR</th>
+                                <th class="px-6 py-4 text-left">CONTACT</th>
+                                <th class="px-6 py-4 text-left">VÉHICULE</th>
+                                <th class="px-6 py-4 text-left">STATUT</th>
+                                <th class="px-6 py-4 text-left">LIVRAISONS</th>
+                                <th class="px-6 py-4 text-left">ACTIONS</th>
+                            </tr>
+                        </thead>
+                        <tbody id="livreurs-tbody" class="divide-y" style="border-color: rgba(198, 179, 131, 0.2);">
+                            <tr>
+                                <td colspan="7" class="px-6 py-12 text-center" style="color: #C6B383;">
+                                    <div class="flex flex-col items-center">
+                                        <div class="animate-spin w-12 h-12 border-4 border-t-transparent rounded-full mb-4" style="border-color: #C6B383; border-top-color: transparent;"></div>
+                                        <p class="font-medium">Chargement des données livreurs...</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            </div>
+
+            <!-- PAGE: ANALYTICS -->
+            <div id="page-analytics" class="page-section">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                    <div class="chart-container rounded-xl p-6">
+                        <h3 class="text-xl font-bold mb-4" style="color: #C6B383;">💰 REVENUS MENSUELS (CFA)</h3>
+                        <canvas id="revenusMensuelChart" width="400" height="300"></canvas>
+                    </div>
+                    <div class="chart-container rounded-xl p-6">
+                        <h3 class="text-xl font-bold mb-4" style="color: #C6B383;">🎯 TOP CHAUFFEURS</h3>
+                        <div id="topChauffeurs" class="space-y-4"></div>
+                    </div>
+                </div>
+                
+                <!-- Statistiques détaillées -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="stat-card rounded-xl p-6">
+                        <h4 class="text-lg font-bold mb-4" style="color: #C6B383;">Chiffre d'Affaires Total</h4>
+                        <p id="ca-total" class="text-3xl font-bold text-gray-800">0 CFA</p>
+                        <p class="text-sm text-gray-600 mt-2">Depuis le début</p>
+                    </div>
+                    <div class="stat-card rounded-xl p-6">
+                        <h4 class="text-lg font-bold mb-4" style="color: #C6B383;">Commissions perçues</h4>
+                        <p id="commissions" class="text-3xl font-bold text-gray-800">0 CFA</p>
+                        <p class="text-sm text-gray-600 mt-2">Ce mois-ci</p>
+                    </div>
+                    <div class="stat-card rounded-xl p-6">
+                        <h4 class="text-lg font-bold mb-4" style="color: #C6B383;">Croissance</h4>
+                        <p id="croissance" class="text-3xl font-bold text-green-600">+0%</p>
+                        <p class="text-sm text-gray-600 mt-2">vs mois dernier</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PAGE: SETTINGS -->
+            <div id="page-settings" class="page-section">
+                <div class="command-center rounded-xl p-6">
+                    <h3 class="text-xl font-bold mb-6" style="color: #C6B383;">⚙️ PARAMÈTRES SYSTÈME</h3>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="space-y-4">
+                            <h4 class="font-semibold text-gray-800">Configuration API</h4>
+                            <div class="space-y-3">
+                                <div class="flex justify-between items-center p-3 bg-green-50 rounded-lg">
+                                    <span>Backend Railway</span>
+                                    <span class="text-green-600 font-semibold">✓ Connecté</span>
+                                </div>
+                                <div class="flex justify-between items-center p-3 bg-green-50 rounded-lg">
+                                    <span>Base de données PostgreSQL</span>
+                                    <span class="text-green-600 font-semibold">✓ Opérationnelle</span>
+                                </div>
+                                <div class="flex justify-between items-center p-3 bg-green-50 rounded-lg">
+                                    <span>API Admin Avancée</span>
+                                    <span class="text-green-600 font-semibold">✓ Active</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="space-y-4">
+                            <h4 class="font-semibold text-gray-800">Actions Système</h4>
+                            <div class="space-y-3">
+                                <button onclick="testDatabaseConnection()" class="w-full btn-vamo text-white py-3 rounded-lg">
+                                    🔍 Tester Connexion DB
+                                </button>
+                                <button onclick="exportData()" class="w-full btn-vamo text-white py-3 rounded-lg">
+                                    📄 Exporter Données
+                                </button>
+                                <button onclick="clearCache()" class="w-full btn-vamo text-white py-3 rounded-lg">
+                                    🗑️ Vider Cache
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Modal Futuriste -->
+    <div id="modalFuturistic" class="modal-futuristic">
+        <div class="modal-content-futuristic rounded-2xl p-8 m-4">
+            <div class="flex justify-between items-center mb-6">
+                <h3 id="modalTitle" class="text-2xl font-bold" style="color: #C6B383;"></h3>
+                <button onclick="closeFuturisticModal()" class="text-gray-500 hover:text-gray-700 text-3xl font-bold transition-colors">×</button>
+            </div>
+            <div id="modalContent" class="text-gray-700">
+                <!-- Contenu du modal -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        console.log('🚀 VAMO COMMAND CENTER - NEURAL NETWORK ACTIVATED');
+        console.log('🔋 System Status: ONLINE');
+        console.log('🎯 Mission: CONTROL ALL OPERATIONS');
+        
+        // Configuration API - Direct URLs
+        const API_BASE = 'https://vamo-backend-production.up.railway.app/api';
+        const API_ADVANCED_BASE = 'https://vamo-backend-production.up.railway.app/api/admin-advanced';
+        const ADMIN_CONFIG = {
+            email: 'admin@vamo.sn',
+            password: 'VamoAdmin2024'
+        };
+        
+        let authToken = null;
+        let systemData = {
+            chauffeurs: [],
+            livreurs: [],
+            analytics: {},
+            searchResults: {}
+        };
+
+        // Navigation sidebar
+
+        // Initialisation du système améliorée
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🚀 Initializing Vamo Back Office...');
+            createFloatingParticles();
+            initializeCharts();
+            authenticateAndLoad();
+            
+            // Event listeners pour la recherche chauffeurs
+            if (document.getElementById('searchInputChauffeurs')) {
+                document.getElementById('searchInputChauffeurs').addEventListener('input', debounce(executeSearchChauffeurs, 300));
+                document.getElementById('statusFilterChauffeurs').addEventListener('change', executeSearchChauffeurs);
+                document.getElementById('disponibiliteFilterChauffeurs').addEventListener('change', executeSearchChauffeurs);
+            }
+            
+            // Event listeners pour la recherche livreurs
+            if (document.getElementById('searchInputLivreurs')) {
+                document.getElementById('searchInputLivreurs').addEventListener('input', debounce(executeSearchLivreurs, 300));
+                document.getElementById('statusFilterLivreurs').addEventListener('change', executeSearchLivreurs);
+                document.getElementById('disponibiliteFilterLivreurs').addEventListener('change', executeSearchLivreurs);
+            }
+            
+            // Ajouter des animations aux éléments au chargement
+            setTimeout(() => {
+                const animatedElements = document.querySelectorAll('.stat-card, .chart-container, .command-center');
+                animatedElements.forEach((element, index) => {
+                    element.style.opacity = '0';
+                    element.style.transform = 'translateY(30px)';
+                    element.style.transition = 'all var(--transition-normal)';
+                    
+                    setTimeout(() => {
+                        element.style.opacity = '1';
+                        element.style.transform = 'translateY(0)';
+                    }, index * 100);
+                });
+            }, 500);
+        });
+
+        // Création des particules flottantes
+        function createFloatingParticles() {
+            const container = document.getElementById('particles');
+            for (let i = 0; i < 50; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                particle.style.left = Math.random() * 100 + '%';
+                particle.style.animationDelay = Math.random() * 20 + 's';
+                particle.style.animationDuration = (15 + Math.random() * 10) + 's';
+                container.appendChild(particle);
+            }
+        }
+
+        // Authentification et chargement initial
+        async function authenticateAndLoad() {
+            try {
+                console.log('🔐 Authenticating admin access...');
+                
+                const response = await fetch(`${API_BASE}/admin/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: ADMIN_CONFIG.email,
+                        password: ADMIN_CONFIG.password
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    authToken = data.token;
+                    console.log('✅ Authentication successful');
+                    await loadAllSystemData();
+                } else {
+                    console.error('❌ Authentication failed');
+                    showErrorNotification('Erreur d\'authentification');
+                }
+            } catch (error) {
+                console.error('❌ Network error:', error);
+                showErrorNotification('Erreur réseau');
+                // Fallback vers les endpoints debug
+                await loadBasicData();
+            }
+        }
+
+        // Chargement de toutes les données système
+        async function loadAllSystemData() {
+            try {
+                console.log('📡 Loading system data...');
+                
+                // Charger données de base et analytics en parallèle
+                const [basicData, analyticsData] = await Promise.all([
+                    loadBasicData(),
+                    loadAnalytics()
+                ]);
+                
+                console.log('✅ All system data loaded');
+                updateDashboardStats();
+                
+            } catch (error) {
+                console.error('❌ Error loading system data:', error);
+                showErrorNotification('Erreur de chargement des données');
+            }
+        }
+
+        // Chargement des données de base avec vraies données
+        async function loadBasicData() {
+            try {
+                console.log('📡 Loading real data from new endpoints...');
+                
+                if (authToken && API_ADVANCED_BASE) {
+                    // Essayer d'abord les nouveaux endpoints avec données complètes
+                    try {
+                        const [chauffeurResponse, livreurResponse] = await Promise.all([
+                            fetch(`${API_ADVANCED_BASE}/chauffeurs/liste-complete`, {
+                                headers: { 'Authorization': `Bearer ${authToken}` }
+                            }),
+                            fetch(`${API_ADVANCED_BASE}/livreurs/liste-complete`, {
+                                headers: { 'Authorization': `Bearer ${authToken}` }
+                            })
+                        ]);
+                        
+                        const chauffeurData = await chauffeurResponse.json();
+                        const livreurData = await livreurResponse.json();
+                        
+                        if (chauffeurData.success && livreurData.success) {
+                            console.log('✅ Using complete data with real vehicle info');
+                            systemData.chauffeurs = chauffeurData.chauffeurs;
+                            systemData.livreurs = livreurData.livreurs;
+                            displayChauffeurs(chauffeurData.chauffeurs);
+                            displayLivreurs(livreurData.livreurs);
+                            return { chauffeurData, livreurData };
+                        }
+                    } catch (advancedError) {
+                        console.log('⚠️ Advanced endpoints failed, falling back to debug...');
+                    }
+                }
+                
+                // Fallback vers les anciens endpoints debug
+                const [chauffeurResponse, livreurResponse] = await Promise.all([
+                    fetch(`${API_BASE}/debug/chauffeurs`),
+                    fetch(`${API_BASE}/debug/livreurs`)
+                ]);
+                
+                const chauffeurData = await chauffeurResponse.json();
+                const livreurData = await livreurResponse.json();
+                
+                if (chauffeurData.success) {
+                    systemData.chauffeurs = chauffeurData.chauffeurs;
+                    displayChauffeurs(chauffeurData.chauffeurs);
+                }
+                
+                if (livreurData.success) {
+                    systemData.livreurs = livreurData.livreurs;
+                    displayLivreurs(livreurData.livreurs);
+                }
+                
+                return { chauffeurData, livreurData };
+                
+            } catch (error) {
+                console.error('❌ Error loading basic data:', error);
+                throw error;
+            }
+        }
+
+        // Chargement des analytics
+        async function loadAnalytics() {
+            try {
+                if (!authToken) return null;
+                
+                const response = await fetch(`${API_ADVANCED_BASE}/analytics/dashboard`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success) {
+                        systemData.analytics = data.analytics;
+                        updateChartsWithData(data.analytics);
+                        return data.analytics;
+                    }
+                }
+                
+                return null;
+                
+            } catch (error) {
+                console.error('❌ Error loading analytics:', error);
+                return null;
+            }
+        }
+
+        // Mise à jour des statistiques du dashboard
+        function updateDashboardStats() {
+            const chauffeurs = systemData.chauffeurs;
+            const livreurs = systemData.livreurs;
+            
+            // Statistiques chauffeurs
+            const chauffeursApprouves = chauffeurs.filter(c => c.statut_validation === 'approuve').length;
+            const chauffeursActifs = chauffeurs.filter(c => c.disponibilite).length;
+            const chauffeursAttente = chauffeurs.filter(c => c.statut_validation === 'en_attente').length;
+            
+            // Statistiques livreurs
+            const livreursApprouves = livreurs.filter(l => l.statut_validation === 'approuve').length;
+            const livreursActifs = livreurs.filter(l => l.disponibilite).length;
+            const livreursAttente = livreurs.filter(l => l.statut_validation === 'en_attente').length;
+            
+            // Mise à jour de l'interface (chiffres de base)
+            document.getElementById('stats-chauffeurs').textContent = chauffeurs.length;
+            document.getElementById('chauffeurs-actifs').textContent = chauffeursActifs;
+            document.getElementById('stats-livreurs').textContent = livreurs.length;
+            document.getElementById('livreurs-actifs').textContent = livreursActifs;
+            document.getElementById('stats-attente').textContent = chauffeursAttente + livreursAttente;
+            
+            // Charger les VRAIS revenus depuis l'API
+            loadRealRevenus();
+            
+            // Animation des compteurs
+            animateCounters();
+        }
+        
+        // Charger les VRAIS revenus depuis l'API
+        async function loadRealRevenus() {
+            try {
+                if (!authToken) {
+                    // Fallback si pas d'auth
+                    document.getElementById('stats-revenus').textContent = '0 CFA';
+                    return;
+                }
+                
+                console.log('💰 Chargement des vrais revenus...');
+                
+                const response = await fetch(`${API_ADVANCED_BASE}/revenus/dashboard`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success) {
+                        const revenusAujourdhui = data.revenus_dashboard.aujourd_hui.revenus_total;
+                        document.getElementById('stats-revenus').textContent = formatCFA(revenusAujourdhui);
+                        
+                        // Stocker pour analytics
+                        systemData.realRevenus = data.revenus_dashboard;
+                        updateAnalyticsWithRealData();
+                        
+                        console.log('✅ Vrais revenus chargés:', formatCFA(revenusAujourdhui));
+                    }
+                } else {
+                    console.log('⚠️ API revenus non disponible, fallback vers estimation');
+                    document.getElementById('stats-revenus').textContent = '0 CFA';
+                }
+                
+            } catch (error) {
+                console.error('❌ Erreur chargement revenus:', error);
+                document.getElementById('stats-revenus').textContent = '0 CFA';
+            }
+        }
+        
+        // Formater en CFA
+        function formatCFA(amount) {
+            return new Intl.NumberFormat('fr-FR').format(amount) + ' CFA';
+        }
+        
+        // Mettre à jour analytics avec les vraies données
+        function updateAnalyticsWithRealData() {
+            if (!systemData.realRevenus) return;
+            
+            const revenusData = systemData.realRevenus;
+            const revenusAujourdhui = revenusData.aujourd_hui.revenus_total;
+            
+            // Calculer CA total de la semaine
+            let caTotal = 0;
+            if (revenusData.semaine && revenusData.semaine.length > 0) {
+                caTotal = revenusData.semaine.reduce((sum, day) => sum + (parseFloat(day.revenus_total) || 0), 0);
+            }
+            
+            // Estimer la croissance (comparaison simple)
+            const croissance = revenusAujourdhui > 0 ? ((revenusAujourdhui / (caTotal / 7)) - 1) * 100 : 0;
+            
+            // Mettre à jour l'interface analytics
+            if (document.getElementById('ca-total')) {
+                document.getElementById('ca-total').textContent = formatCFA(caTotal);
+            }
+            if (document.getElementById('commissions')) {
+                // Supposons 0% de commission puisque c'est gratuit pour les utilisateurs
+                document.getElementById('commissions').textContent = formatCFA(0);
+            }
+            if (document.getElementById('croissance')) {
+                const croissanceFormatted = croissance > 0 ? '+' + croissance.toFixed(1) + '%' : croissance.toFixed(1) + '%';
+                document.getElementById('croissance').textContent = croissanceFormatted;
+                
+                // Changer la couleur selon la croissance
+                const elem = document.getElementById('croissance');
+                if (croissance > 0) {
+                    elem.className = 'text-3xl font-bold text-green-600';
+                } else if (croissance < 0) {
+                    elem.className = 'text-3xl font-bold text-red-600';
+                } else {
+                    elem.className = 'text-3xl font-bold text-gray-600';
+                }
+            }
+        }
+
+        // Recherche chauffeurs améliorée
+        function executeSearchChauffeurs() {
+            const query = document.getElementById('searchInputChauffeurs')?.value || '';
+            const status = document.getElementById('statusFilterChauffeurs')?.value || '';
+            const disponibilite = document.getElementById('disponibiliteFilterChauffeurs')?.value || '';
+            
+            console.log(`Recherche chauffeurs: ${query}, statut: ${status}, dispo: ${disponibilite}`);
+            
+            // Animation de recherche
+            const searchButton = document.querySelector('button[onclick="executeSearchChauffeurs()"]');
+            if (searchButton) {
+                searchButton.style.transform = 'scale(0.95)';
+                searchButton.style.transition = 'all var(--transition-fast)';
+                setTimeout(() => {
+                    searchButton.style.transform = 'scale(1)';
+                }, 150);
+            }
+            
+            let filtered = systemData.chauffeurs;
+            
+            if (query) {
+                const searchLower = query.toLowerCase();
+                filtered = filtered.filter(c => 
+                    c.nom.toLowerCase().includes(searchLower) ||
+                    c.prenom.toLowerCase().includes(searchLower) ||
+                    c.telephone.includes(query)
+                );
+            }
+            
+            if (status) {
+                filtered = filtered.filter(c => c.statut_validation === status);
+            }
+            
+            if (disponibilite !== '') {
+                filtered = filtered.filter(c => c.disponibilite === (disponibilite === 'true'));
+            }
+            
+            displayChauffeurs(filtered);
+        }
+        
+        // Recherche livreurs améliorée
+        function executeSearchLivreurs() {
+            const query = document.getElementById('searchInputLivreurs')?.value || '';
+            const status = document.getElementById('statusFilterLivreurs')?.value || '';
+            const disponibilite = document.getElementById('disponibiliteFilterLivreurs')?.value || '';
+            
+            console.log(`Recherche livreurs: ${query}, statut: ${status}, dispo: ${disponibilite}`);
+            
+            // Animation de recherche
+            const searchButton = document.querySelector('button[onclick="executeSearchLivreurs()"]');
+            if (searchButton) {
+                searchButton.style.transform = 'scale(0.95)';
+                searchButton.style.transition = 'all var(--transition-fast)';
+                setTimeout(() => {
+                    searchButton.style.transform = 'scale(1)';
+                }, 150);
+            }
+            
+            let filtered = systemData.livreurs;
+            
+            if (query) {
+                const searchLower = query.toLowerCase();
+                filtered = filtered.filter(l => 
+                    l.nom.toLowerCase().includes(searchLower) ||
+                    l.prenom.toLowerCase().includes(searchLower) ||
+                    l.telephone.includes(query)
+                );
+            }
+            
+            if (status) {
+                filtered = filtered.filter(l => l.statut_validation === status);
+            }
+            
+            if (disponibilite !== '') {
+                filtered = filtered.filter(l => l.disponibilite === (disponibilite === 'true'));
+            }
+            
+            displayLivreurs(filtered);
+        }
+
+        // Animation des compteurs améliorée
+        function animateCounters() {
+            const counters = document.querySelectorAll('[id^="stats-"]');
+            counters.forEach((counter, index) => {
+                setTimeout(() => {
+                    counter.style.transform = 'scale(1.1)';
+                    counter.style.transition = 'all var(--transition-normal)';
+                    counter.classList.add('animate-pulse-glow');
+                    
+                    setTimeout(() => {
+                        counter.style.transform = 'scale(1)';
+                        counter.classList.remove('animate-pulse-glow');
+                    }, 300);
+                }, index * 100);
+            });
+        }
+
+        // Fonctions paramètres
+        function testDatabaseConnection() {
+            // Animation du bouton
+            const button = event.target;
+            const originalText = button.textContent;
+            button.textContent = '🔄 Test en cours...';
+            button.style.transform = 'scale(0.95)';
+            button.style.transition = 'all var(--transition-fast)';
+            
+            showInfoNotification('Test de connexion en cours...');
+            
+            fetch(`${API_BASE}/test`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showSuccessNotification('Connexion base de données OK!');
+                        button.style.background = 'linear-gradient(135deg, #10B981, #059669)';
+                    } else {
+                        showErrorNotification('Erreur de connexion');
+                        button.style.background = 'linear-gradient(135deg, #EF4444, #DC2626)';
+                    }
+                })
+                .catch(error => {
+                    showErrorNotification('Erreur réseau');
+                    button.style.background = 'linear-gradient(135deg, #EF4444, #DC2626)';
+                })
+                .finally(() => {
+                    setTimeout(() => {
+                        button.textContent = originalText;
+                        button.style.transform = 'scale(1)';
+                        button.style.background = 'linear-gradient(135deg, var(--vamo-gold), var(--vamo-gold-dark))';
+                    }, 2000);
+                });
+        }
+        
+        function exportData() {
+            showInfoNotification('Export des données en cours...');
+            // TODO: Implémenter export CSV/Excel
+            setTimeout(() => {
+                showSuccessNotification('Export terminé (fonctionnalité en cours de développement)');
+            }, 2000);
+        }
+        
+        function clearCache() {
+            // Animation du bouton
+            const button = event.target;
+            const originalText = button.textContent;
+            button.textContent = '🗑️ Nettoyage...';
+            button.style.transform = 'scale(0.95)';
+            button.style.transition = 'all var(--transition-fast)';
+            
+            showInfoNotification('Nettoyage en cours...');
+            
+            // Vider le cache local
+            systemData = { chauffeurs: [], livreurs: [], analytics: {}, searchResults: {} };
+            
+            setTimeout(() => {
+                showSuccessNotification('Cache vidé!');
+                loadAllSystemData();
+                
+                // Restaurer le bouton
+                button.textContent = originalText;
+                button.style.transform = 'scale(1)';
+            }, 1000);
+        }
+
+        // Fonction d'actualisation améliorée
+        function refreshAllData() {
+            const refreshBtn = document.getElementById('refreshBtn');
+            if (refreshBtn) {
+                const originalText = refreshBtn.textContent;
+                refreshBtn.textContent = '🔄 Actualisation...';
+                refreshBtn.style.transform = 'rotate(360deg)';
+                refreshBtn.style.transition = 'all var(--transition-normal)';
+                
+                setTimeout(() => {
+                    refreshBtn.textContent = originalText;
+                    refreshBtn.style.transform = 'rotate(0deg)';
+                }, 2000);
+            }
+            
+            showInfoNotification('Actualisation des données...');
+            loadAllSystemData();
+        }
+
+        // MOBILE MENU FUNCTIONS
+        function toggleMobileMenu() {
+            const sidebar = document.querySelector('.sidebar');
+            const overlay = document.getElementById('mobileOverlay');
+            const menuIcon = document.getElementById('menuIcon');
+            
+            sidebar.classList.toggle('mobile-open');
+            overlay.classList.toggle('active');
+            
+            // Animation de l'icône menu
+            if (sidebar.classList.contains('mobile-open')) {
+                menuIcon.innerHTML = '✕';
+                menuIcon.style.transform = 'rotate(180deg)';
+            } else {
+                menuIcon.innerHTML = '☰';
+                menuIcon.style.transform = 'rotate(0deg)';
+            }
+        }
+
+        function closeMobileMenu() {
+            const sidebar = document.querySelector('.sidebar');
+            const overlay = document.getElementById('mobileOverlay');
+            const menuIcon = document.getElementById('menuIcon');
+            
+            sidebar.classList.remove('mobile-open');
+            overlay.classList.remove('active');
+            menuIcon.innerHTML = '☰';
+            menuIcon.style.transform = 'rotate(0deg)';
+        }
+
+        // Fermer le menu mobile lors du clic sur un nav item
+        function showPage(pageName) {
+            // Fermer le menu mobile d'abord
+            if (window.innerWidth <= 768) {
+                closeMobileMenu();
+            }
+            
+            console.log(`Switching to page: ${pageName}`);
+            
+            // Animation de transition améliorée
+            const currentActive = document.querySelector('.page-section.active');
+            if (currentActive) {
+                currentActive.style.opacity = '0';
+                currentActive.style.transform = 'translateY(20px)';
+                currentActive.style.transition = 'all var(--transition-normal)';
+            }
+            
+            setTimeout(() => {
+                // Cacher toutes les pages
+                document.querySelectorAll('.page-section').forEach(section => {
+                    section.classList.remove('active');
+                    section.style.opacity = '1';
+                    section.style.transform = 'translateY(0)';
+                });
+                
+                // Retirer active de tous les nav items
+                document.querySelectorAll('.nav-item').forEach(item => {
+                    item.classList.remove('active');
+                });
+                
+                // Montrer la page sélectionnée
+                const targetPage = document.getElementById(`page-${pageName}`);
+                if (targetPage) {
+                    targetPage.classList.add('active');
+                    targetPage.style.opacity = '0';
+                    targetPage.style.transform = 'translateY(20px)';
+                    
+                    // Animation d'entrée élégante
+                    setTimeout(() => {
+                        targetPage.style.opacity = '1';
+                        targetPage.style.transform = 'translateY(0)';
+                        targetPage.classList.add('animate-elegant-slide');
+                    }, 50);
+                }
+                
+                // Activer le nav item avec animation
+                const clickedItem = event.target.closest('.nav-item');
+                if (clickedItem) {
+                    clickedItem.classList.add('active');
+                    clickedItem.style.transform = 'translateX(8px) scale(1.05)';
+                    setTimeout(() => {
+                        clickedItem.style.transform = 'translateX(3px) scale(1)';
+                    }, 200);
+                }
+                
+                // Mettre à jour le titre avec animation
+                const titles = {
+                    'dashboard': 'Tableau de Bord',
+                    'chauffeurs': 'Gestion Chauffeurs', 
+                    'livreurs': 'Gestion Livreurs',
+                    'analytics': 'Analytics & Revenus',
+                    'settings': 'Paramètres'
+                };
+                
+                const subtitles = {
+                    'dashboard': 'Vue d\'ensemble des opérations Vamo',
+                    'chauffeurs': 'Gestion et validation des chauffeurs',
+                    'livreurs': 'Gestion et validation des livreurs', 
+                    'analytics': 'Statistiques et revenus détaillés',
+                    'settings': 'Configuration et paramètres système'
+                };
+                
+                const titleElement = document.getElementById('page-title');
+                const subtitleElement = document.getElementById('page-subtitle');
+                
+                titleElement.style.opacity = '0';
+                titleElement.style.transform = 'translateY(-10px)';
+                titleElement.style.transition = 'all var(--transition-normal)';
+                
+                setTimeout(() => {
+                    titleElement.textContent = titles[pageName] || 'Vamo Admin';
+                    subtitleElement.textContent = subtitles[pageName] || '';
+                    
+                    titleElement.style.opacity = '1';
+                    titleElement.style.transform = 'translateY(0)';
+                }, 150);
+                
+            }, 200);
+        }
+        
+    </script>
+    
+    <!-- Include configuration FIRST -->
+    <script src="config.js"></script>
+    <!-- Include advanced functions -->
+    <script src="futuristic-functions.js"></script>
+</body>
+</html>

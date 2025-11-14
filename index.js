@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 let cloudinary = null;
 const app = express();
 const db = require('./db');
@@ -74,6 +75,14 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 app.use(express.json());
+
+// 🎨 Servir le dashboard admin (fichiers statiques)
+app.use(express.static(path.join(__dirname, 'public')));
+
+// 🏠 Route pour la page d'accueil - Dashboard Admin
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 // Test endpoint
 app.get('/api/test', (req, res) => {
