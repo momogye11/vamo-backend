@@ -56,12 +56,14 @@ const uploadToCloudinary = async (file, folder = 'vamo') => {
     }
 };
 
-// Configuration CORS pour autoriser le frontend Vercel
+// Configuration CORS pour autoriser le frontend Vercel et localhost
 const corsOptions = {
     origin: [
         'http://localhost:3000',
-        'http://localhost:3001', 
+        'http://localhost:3001',
         'http://localhost:5173',
+        'http://localhost:8080',  // Pour le dashboard admin en local
+        'http://127.0.0.1:8080',  // Alternative localhost
         'https://vamo-admin-q9yv.vercel.app',
         /\.vercel\.app$/  // Autorise tous les domaines Vercel
     ],
