@@ -177,7 +177,28 @@ app.get('/api/debug/db-test', async (req, res) => {
 // Debug endpoint to see all chauffeurs
 app.get('/api/debug/chauffeurs', async (req, res) => {
     try {
-        const result = await db.query('SELECT id_chauffeur, nom, prenom, telephone, statut_validation, disponibilite FROM Chauffeur');
+        const result = await db.query(`
+            SELECT
+                c.id_chauffeur,
+                c.nom,
+                c.prenom,
+                c.telephone,
+                c.email,
+                c.statut_validation,
+                c.disponibilite,
+                c.date_inscription,
+                c.photo_permis,
+                v.id_vehicule,
+                v.marque_vehicule,
+                v.modele_vehicule,
+                v.couleur_vehicule,
+                v.plaque_immatriculation,
+                v.annee_vehicule,
+                v.nombre_places,
+                v.photo_vehicule
+            FROM Chauffeur c
+            LEFT JOIN Vehicule v ON c.id_chauffeur = v.id_chauffeur
+        `);
         res.json({
             success: true,
             chauffeurs: result.rows,
@@ -196,7 +217,22 @@ app.get('/api/debug/chauffeurs', async (req, res) => {
 // Debug endpoint to see all livreurs
 app.get('/api/debug/livreurs', async (req, res) => {
     try {
-        const result = await db.query('SELECT id_livreur, nom, prenom, telephone, statut_validation, disponibilite FROM Livreur');
+        const result = await db.query(`
+            SELECT
+                l.id_livreur,
+                l.nom,
+                l.prenom,
+                l.telephone,
+                l.email,
+                l.statut_validation,
+                l.disponibilite,
+                l.date_inscription,
+                l.photo_permis,
+                l.type_vehicule,
+                l.immatriculation_vehicule,
+                l.photo_vehicule
+            FROM Livreur l
+        `);
         res.json({
             success: true,
             livreurs: result.rows,
