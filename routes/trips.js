@@ -4,6 +4,38 @@ const router = express.Router();
 const db = require('../db');
 const pushNotificationService = require('../services/pushNotificationService');
 
+// Get ALL trips (for admin dashboard)
+router.get('/', async (req, res) => {
+    try {
+        console.log('📊 Fetching all trips for admin dashboard');
+
+        const result = await db.query(`
+            SELECT
+                c.*,
+                cl.nom as client_nom,
+                cl.prenom as client_prenom,
+                ch.nom as chauffeur_nom,
+                ch.prenom as chauffeur_prenom
+            FROM Course c
+            LEFT JOIN Client cl ON c.id_client = cl.id_client
+            LEFT JOIN Chauffeur ch ON c.id_chauffeur = ch.id_chauffeur
+            ORDER BY c.date_heure_depart DESC
+            LIMIT 1000
+        `);
+
+        console.log(`✅ Found ${result.rowCount} trips`);
+        res.json(result.rows);
+
+    } catch (err) {
+        console.error("❌ Error fetching all trips:", err);
+        res.status(500).json({
+            success: false,
+            error: 'Error fetching trips',
+            message: err.message
+        });
+    }
+});
+
 // Get available trips for drivers (simple polling)
 router.get('/available/:driverId', async (req, res) => {
     const { driverId } = req.params;

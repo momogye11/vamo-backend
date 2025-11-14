@@ -5,6 +5,40 @@ const pool = require('../db');
 // Store for managing active delivery searches
 const activeDeliverySearches = new Map();
 
+// Get ALL deliveries (for admin dashboard)
+router.get('/', async (req, res) => {
+    try {
+        console.log('📦 Fetching all deliveries for admin dashboard');
+
+        const result = await pool.query(`
+            SELECT
+                l.*,
+                cl.nom as client_nom,
+                cl.prenom as client_prenom,
+                liv.nom as livreur_nom,
+                liv.prenom as livreur_prenom,
+                tl.nom_type as type_livraison_nom
+            FROM Livraison l
+            LEFT JOIN Client cl ON l.id_client = cl.id_client
+            LEFT JOIN Livreur liv ON l.id_livreur = liv.id_livreur
+            LEFT JOIN TypeLivraison tl ON l.id_type = tl.id_type
+            ORDER BY l.date_heure_depart DESC
+            LIMIT 1000
+        `);
+
+        console.log(`✅ Found ${result.rowCount} deliveries`);
+        res.json(result.rows);
+
+    } catch (err) {
+        console.error("❌ Error fetching all deliveries:", err);
+        res.status(500).json({
+            success: false,
+            error: 'Error fetching deliveries',
+            message: err.message
+        });
+    }
+});
+
 // Utility function to calculate distance between two coordinates (Haversine formula)
 function calculateDistance(coord1, coord2) {
     const R = 6371; // Earth's radius in kilometers
