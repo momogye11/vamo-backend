@@ -183,19 +183,19 @@ app.get('/api/debug/chauffeurs', async (req, res) => {
                 c.nom,
                 c.prenom,
                 c.telephone,
-                c.email,
+                c.marque_vehicule,
+                c.annee_vehicule,
+                c.plaque_immatriculation,
+                c.photo_vehicule,
+                c.photo_cni,
+                c.photo_selfie,
                 c.statut_validation,
                 c.disponibilite,
-                c.date_inscription,
-                c.photo_permis,
-                v.id_vehicule,
-                v.marque_vehicule,
-                v.modele_vehicule,
-                v.couleur_vehicule,
-                v.plaque_immatriculation,
-                v.annee_vehicule,
-                v.nombre_places,
-                v.photo_vehicule
+                c.device_token,
+                c.date_creation as date_inscription,
+                v.modele as modele_vehicule,
+                v.couleur as couleur_vehicule,
+                v.plaque as plaque_vehicule_alt
             FROM Chauffeur c
             LEFT JOIN Vehicule v ON c.id_chauffeur = v.id_chauffeur
         `);
@@ -219,19 +219,19 @@ app.get('/api/debug/livreurs', async (req, res) => {
     try {
         const result = await db.query(`
             SELECT
-                l.id_livreur,
-                l.nom,
-                l.prenom,
-                l.telephone,
-                l.email,
-                l.statut_validation,
-                l.disponibilite,
-                l.date_inscription,
-                l.photo_permis,
-                l.type_vehicule,
-                l.immatriculation_vehicule,
-                l.photo_vehicule
-            FROM Livreur l
+                id_livreur,
+                nom,
+                prenom,
+                telephone,
+                type_vehicule,
+                photo_vehicule,
+                photo_cni,
+                photo_selfie,
+                statut_validation,
+                disponibilite,
+                device_token,
+                date_creation as date_inscription
+            FROM Livreur
         `);
         res.json({
             success: true,
