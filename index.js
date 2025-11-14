@@ -1264,6 +1264,46 @@ app.post('/api/debug/clean-placeholder-images', async (req, res) => {
     }
 });
 
+// Reset all drivers/delivery persons availability to offline
+app.post('/api/debug/reset-availability', async (req, res) => {
+    try {
+        console.log('🔄 Resetting all availability statuses to offline...');
+
+        const [chauffeurResult, livreurResult] = await Promise.all([
+            db.query(`
+                UPDATE Chauffeur
+                SET disponibilite = false
+                WHERE disponibilite = true
+                RETURNING id_chauffeur, nom, prenom
+            `),
+            db.query(`
+                UPDATE Livreur
+                SET disponibilite = false
+                WHERE disponibilite = true
+                RETURNING id_livreur, nom, prenom
+            `)
+        ]);
+
+        console.log(`✅ Reset ${chauffeurResult.rowCount} chauffeurs and ${livreurResult.rowCount} livreurs`);
+
+        res.json({
+            success: true,
+            message: 'Availability statuses reset successfully',
+            chauffeurs_reset: chauffeurResult.rows,
+            livreurs_reset: livreurResult.rows,
+            total_reset: chauffeurResult.rowCount + livreurResult.rowCount
+        });
+
+    } catch (error) {
+        console.error('❌ Error resetting availability:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to reset availability',
+            details: error.message
+        });
+    }
+});
+
 // Test endpoint
 app.get('/api/test', (req, res) => {
     res.json({ 
