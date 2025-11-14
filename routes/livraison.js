@@ -17,7 +17,7 @@ router.get('/', async (req, res) => {
                 cl.prenom as client_prenom,
                 liv.nom as livreur_nom,
                 liv.prenom as livreur_prenom,
-                tl.nom_type as type_livraison_nom
+                tl.nom as type_livraison_nom
             FROM Livraison l
             LEFT JOIN Client cl ON l.id_client = cl.id_client
             LEFT JOIN Livreur liv ON l.id_livreur = liv.id_livreur
