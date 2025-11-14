@@ -99,12 +99,60 @@ router.post('/register', upload.fields([
             });
         }
 
+        // Upload images to Cloudinary if available
+        let photoUrls = {
+            photo_cni: null,
+            photo_selfie: null,
+            photo_vehicule: null
+        };
+
+        console.log('🔍 Checking Cloudinary availability for chauffeur...');
+
+        if (process.env.CLOUDINARY_CLOUD_NAME && req.files) {
+            console.log('✅ Cloudinary configured, uploading chauffeur images...');
+            try {
+                const cloudinary = require('cloudinary').v2;
+
+                cloudinary.config({
+                    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+                    api_key: process.env.CLOUDINARY_API_KEY,
+                    api_secret: process.env.CLOUDINARY_API_SECRET
+                });
+
+                // Upload each image to Cloudinary
+                for (const [fieldName, fileArray] of Object.entries(req.files)) {
+                    if (fileArray && fileArray.length > 0) {
+                        const file = fileArray[0];
+                        console.log(`📤 Uploading ${fieldName} to Cloudinary:`, file.path);
+
+                        const result = await cloudinary.uploader.upload(file.path, {
+                            folder: 'vamo/chauffeurs',
+                            resource_type: 'auto'
+                        });
+
+                        photoUrls[fieldName] = result.secure_url;
+                        console.log(`✅ ${fieldName} uploaded:`, result.secure_url);
+                    }
+                }
+            } catch (cloudinaryError) {
+                console.error('❌ Cloudinary upload error:', cloudinaryError);
+                // Continue with local paths if Cloudinary fails
+            }
+        }
+
+        // Use Cloudinary URLs if available, otherwise use local paths
+        const photo_vehicule = photoUrls.photo_vehicule || req.files.photo_vehicule[0].path;
+        const photo_cni = photoUrls.photo_cni || req.files.photo_cni[0].path;
+        const photo_selfie = photoUrls.photo_selfie || req.files.photo_selfie[0].path;
+
+        console.log('📸 Photo URLs:', { photo_vehicule, photo_cni, photo_selfie });
+
         // Créer le chauffeur avec les photos
         const result = await db.query(
-            `INSERT INTO Chauffeur 
-            (nom, prenom, telephone, marque_vehicule, annee_vehicule, plaque_immatriculation, 
-             photo_vehicule, photo_cni, photo_selfie) 
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
+            `INSERT INTO Chauffeur
+            (nom, prenom, telephone, marque_vehicule, annee_vehicule, plaque_immatriculation,
+             photo_vehicule, photo_cni, photo_selfie)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
             RETURNING id_chauffeur, telephone, statut_validation`,
             [
                 nom,
@@ -113,9 +161,9 @@ router.post('/register', upload.fields([
                 marque_vehicule,
                 parseInt(annee_vehicule),
                 plaque_immatriculation,
-                req.files.photo_vehicule[0].path,
-                req.files.photo_cni[0].path,
-                req.files.photo_selfie[0].path
+                photo_vehicule,
+                photo_cni,
+                photo_selfie
             ]
         );
 
