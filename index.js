@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const cookieParser = require('cookie-parser');
 const path = require('path');
 let cloudinary = null;
 const app = express();
@@ -75,6 +76,7 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 app.use(express.json());
+app.use(cookieParser());
 
 // 🔐 Authentication simple (en mémoire pour l'instant)
 const activeSessions = new Set();

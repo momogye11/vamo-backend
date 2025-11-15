@@ -203,6 +203,14 @@ router.post('/verify-login-code', (req, res) => {
             activeSessions.delete(token);
         }, 24 * 60 * 60 * 1000);
 
+        // Set cookie HTTP-only pour persistance
+        res.cookie('vamo_admin_token', token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production', // HTTPS uniquement en production
+            sameSite: 'lax',
+            maxAge: 24 * 60 * 60 * 1000 // 24h en millisecondes
+        });
+
         res.json({
             success: true,
             message: 'Connexion réussie',
@@ -221,7 +229,7 @@ router.post('/verify-login-code', (req, res) => {
 // 🚪 Route pour déconnexion (invalider le token)
 router.post('/logout', (req, res) => {
     try {
-        const token = req.headers['x-auth-token'] || req.body.token;
+        const token = req.headers['x-auth-token'] || req.body.token || req.cookies?.vamo_admin_token;
 
         if (token) {
             // Supprimer le token des sessions actives
@@ -230,6 +238,9 @@ router.post('/logout', (req, res) => {
                 activeSessions.delete(token);
             }
         }
+
+        // Supprimer le cookie
+        res.clearCookie('vamo_admin_token');
 
         res.json({
             success: true,
