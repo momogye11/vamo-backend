@@ -118,7 +118,8 @@ async function loadDashboard() {
         await Promise.all([
             loadDashboardStats(),
             loadDashboardCharts(),
-            loadRecentActivity()
+            loadRecentActivity(),
+            loadPendingRequests() // CRITIQUE: Charger les demandes en attente
         ]);
     } catch (error) {
         // console.error('❌ Error loading dashboard:', error);
