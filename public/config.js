@@ -97,7 +97,7 @@ function getConfigValue(path) {
         if (value && typeof value === 'object' && key in value) {
             value = value[key];
         } else {
-            console.warn(`Configuration path not found: ${path}`);
+            // console.warn(`Configuration path not found: ${path}`);
             return null;
         }
     }
@@ -118,7 +118,7 @@ function updateConfig(path, value) {
     }
     
     current[keys[keys.length - 1]] = value;
-    console.log(`Configuration updated: ${path} = ${value}`);
+    // console.log(`Configuration updated: ${path} = ${value}`);
 }
 
 // Export pour utilisation dans d'autres fichiers

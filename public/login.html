@@ -254,7 +254,7 @@
                     showError(data.message || 'Erreur lors de l\'envoi du code');
                 }
             } catch (error) {
-                console.error('Erreur:', error);
+                // console.error('Erreur:', error);
                 showError('Erreur de connexion au serveur');
             } finally {
                 sendCodeBtn.disabled = false;
@@ -304,7 +304,7 @@
                     showError(data.message || 'Code incorrect');
                 }
             } catch (error) {
-                console.error('Erreur:', error);
+                // console.error('Erreur:', error);
                 showError('Erreur de connexion au serveur');
             } finally {
                 verifyCodeBtn.disabled = false;
@@ -341,7 +341,7 @@
                     showError(data.message || 'Erreur lors du renvoi du code');
                 }
             } catch (error) {
-                console.error('Erreur:', error);
+                // console.error('Erreur:', error);
                 showError('Erreur de connexion au serveur');
             } finally {
                 resendCodeBtn.disabled = false;

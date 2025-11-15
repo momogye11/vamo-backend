@@ -68,7 +68,7 @@ function loadPageData(pageName) {
     const lastLoad = pageLoadTimestamps[pageName] || 0;
 
     if (pageName === lastLoadedPage && (now - lastLoad) < 5000) {
-        console.log(`⏭️ Skipping reload of ${pageName} (recently loaded)`);
+        // console.log(`⏭️ Skipping reload of ${pageName} (recently loaded)`);
         return;
     }
 
@@ -108,7 +108,7 @@ function loadPageData(pageName) {
 // ============================================
 
 async function loadDashboard() {
-    console.log('📊 Loading dashboard...');
+    // console.log('📊 Loading dashboard...');
 
     try {
         // Load all dashboard stats
@@ -118,7 +118,7 @@ async function loadDashboard() {
             loadRecentActivity()
         ]);
     } catch (error) {
-        console.error('❌ Error loading dashboard:', error);
+        // console.error('❌ Error loading dashboard:', error);
         showNotification('Erreur de chargement du dashboard', 'error');
     }
 }
@@ -150,7 +150,7 @@ async function loadDashboardStats() {
         document.getElementById('stat-revenus-jour').textContent = formatCFA(revenusJour);
 
     } catch (error) {
-        console.error('❌ Error loading dashboard stats:', error);
+        // console.error('❌ Error loading dashboard stats:', error);
     }
 }
 
@@ -166,7 +166,7 @@ async function calculateRevenusJour(date) {
 
         return tripsToday.reduce((sum, trip) => sum + (parseFloat(trip.prix) || 0), 0);
     } catch (error) {
-        console.error('Error calculating revenus:', error);
+        // console.error('Error calculating revenus:', error);
         return 0;
     }
 }
@@ -279,7 +279,7 @@ async function loadDashboardCharts() {
         }
 
     } catch (error) {
-        console.error('❌ Error loading dashboard charts:', error);
+        // console.error('❌ Error loading dashboard charts:', error);
     }
 }
 
@@ -354,7 +354,7 @@ async function loadRecentActivity() {
         `).join('');
 
     } catch (error) {
-        console.error('❌ Error loading recent activity:', error);
+        // console.error('❌ Error loading recent activity:', error);
         container.innerHTML = '<p class="text-center py-8 text-red-500">Erreur de chargement</p>';
     }
 }
@@ -367,7 +367,7 @@ let clientsPage = 1;
 const clientsPerPage = 20;
 
 async function loadClients() {
-    console.log('👥 Loading clients...');
+    // console.log('👥 Loading clients...');
 
     try {
         // ✅ VRAIES DONNÉES - Charger clients + courses + livraisons
@@ -381,7 +381,7 @@ async function loadClients() {
         const allCourses = await coursesRes.json();
         const allLivraisons = await livraisonsRes.json() || [];
 
-        console.log('Clients loaded:', clients.length);
+        // console.log('Clients loaded:', clients.length);
 
         // Update total
         document.getElementById('clientsTotal').textContent = clients.length;
@@ -437,7 +437,7 @@ async function loadClients() {
         }).join('');
 
     } catch (error) {
-        console.error('❌ Error loading clients:', error);
+        // console.error('❌ Error loading clients:', error);
         document.getElementById('clientsTableBody').innerHTML = `
             <tr>
                 <td colspan="7" class="text-center py-8 text-red-500">
@@ -452,13 +452,13 @@ function searchClients() {
     const query = document.getElementById('searchClients').value.toLowerCase();
     const status = document.getElementById('filterClientsStatus').value;
 
-    console.log('Searching clients:', query, status);
+    // console.log('Searching clients:', query, status);
     // Implement search logic
     loadClients();
 }
 
 async function showClientDetails(clientId) {
-    console.log('Show client details:', clientId);
+    // console.log('Show client details:', clientId);
 
     // Afficher modal avec chargement
     showModal('Détails Client #' + clientId, '<div class="text-center py-8"><p>Chargement des données...</p></div>');
@@ -572,7 +572,7 @@ async function showClientDetails(clientId) {
         document.getElementById('modalContent').innerHTML = modalContent;
 
     } catch (error) {
-        console.error('Error loading client details:', error);
+        // console.error('Error loading client details:', error);
         document.getElementById('modalContent').innerHTML = '<p class="text-red-500">Erreur de chargement</p>';
     }
 }
@@ -582,7 +582,7 @@ async function showClientDetails(clientId) {
 // ============================================
 
 async function loadChauffeurs() {
-    console.log('🚗 Loading chauffeurs...');
+    // console.log('🚗 Loading chauffeurs...');
 
     try {
         const res = await fetch(`${API_BASE}/debug/chauffeurs`);
@@ -634,7 +634,7 @@ async function loadChauffeurs() {
         `;
 
     } catch (error) {
-        console.error('❌ Error loading chauffeurs:', error);
+        // console.error('❌ Error loading chauffeurs:', error);
     }
 }
 
@@ -653,7 +653,7 @@ async function approveChauffeur(id) {
             throw new Error('Erreur lors de l\'approbation');
         }
     } catch (error) {
-        console.error('Error:', error);
+        // console.error('Error:', error);
         showNotification('Erreur lors de l\'approbation', 'error');
     }
 }
@@ -673,13 +673,13 @@ async function rejectChauffeur(id) {
             throw new Error('Erreur lors du rejet');
         }
     } catch (error) {
-        console.error('Error:', error);
+        // console.error('Error:', error);
         showNotification('Erreur lors du rejet', 'error');
     }
 }
 
 async function showChauffeurDetails(chauffeurId) {
-    console.log('Show chauffeur details:', chauffeurId);
+    // console.log('Show chauffeur details:', chauffeurId);
 
     showModal('Détails Chauffeur #' + chauffeurId, '<div class="text-center py-8"><p>Chargement des données...</p></div>');
 
@@ -812,7 +812,7 @@ async function showChauffeurDetails(chauffeurId) {
         document.getElementById('modalContent').innerHTML = modalContent;
 
     } catch (error) {
-        console.error('Error loading chauffeur details:', error);
+        // console.error('Error loading chauffeur details:', error);
         document.getElementById('modalContent').innerHTML = '<p class="text-red-500">Erreur de chargement</p>';
     }
 }
@@ -834,7 +834,7 @@ async function updateChauffeurStatus(chauffeurId, action) {
     if (!confirm(actionMessages[action])) return;
 
     try {
-        console.log(`🔄 Updating chauffeur ${chauffeurId} with action: ${action}`);
+        // console.log(`🔄 Updating chauffeur ${chauffeurId} with action: ${action}`);
 
         const res = await fetch(`${API_BASE}/admin/drivers/${chauffeurId}/verify`, {
             method: 'PUT',
@@ -856,12 +856,12 @@ async function updateChauffeurStatus(chauffeurId, action) {
             await loadChauffeurs();
             loadPendingRequests();
 
-            console.log('✅ Chauffeur status updated successfully');
+            // console.log('✅ Chauffeur status updated successfully');
         } else {
             throw new Error(data.error || 'Erreur lors de la mise à jour');
         }
     } catch (error) {
-        console.error('❌ Error updating chauffeur status:', error);
+        // console.error('❌ Error updating chauffeur status:', error);
         showNotification('Erreur lors de la mise à jour du statut', 'error');
     }
 }
@@ -871,7 +871,7 @@ async function updateChauffeurStatus(chauffeurId, action) {
 // ============================================
 
 async function loadLivreurs() {
-    console.log('🏍️ Loading livreurs...');
+    // console.log('🏍️ Loading livreurs...');
 
     try {
         const res = await fetch(`${API_BASE}/debug/livreurs`);
@@ -922,7 +922,7 @@ async function loadLivreurs() {
         `;
 
     } catch (error) {
-        console.error('❌ Error loading livreurs:', error);
+        // console.error('❌ Error loading livreurs:', error);
     }
 }
 
@@ -939,7 +939,7 @@ async function approveLivreur(id) {
             loadLivreurs();
         }
     } catch (error) {
-        console.error('Error:', error);
+        // console.error('Error:', error);
         showNotification('Erreur lors de l\'approbation', 'error');
     }
 }
@@ -957,13 +957,13 @@ async function rejectLivreur(id) {
             loadLivreurs();
         }
     } catch (error) {
-        console.error('Error:', error);
+        // console.error('Error:', error);
         showNotification('Erreur lors du rejet', 'error');
     }
 }
 
 async function showLivreurDetails(livreurId) {
-    console.log('Show livreur details:', livreurId);
+    // console.log('Show livreur details:', livreurId);
 
     showModal('Détails Livreur #' + livreurId, '<div class="text-center py-8"><p>Chargement des données...</p></div>');
 
@@ -1076,7 +1076,7 @@ async function showLivreurDetails(livreurId) {
         document.getElementById('modalContent').innerHTML = modalContent;
 
     } catch (error) {
-        console.error('Error loading livreur details:', error);
+        // console.error('Error loading livreur details:', error);
         document.getElementById('modalContent').innerHTML = '<p class="text-red-500">Erreur de chargement</p>';
     }
 }
@@ -1098,7 +1098,7 @@ async function updateLivreurStatus(livreurId, action) {
     if (!confirm(actionMessages[action])) return;
 
     try {
-        console.log(`🔄 Updating livreur ${livreurId} with action: ${action}`);
+        // console.log(`🔄 Updating livreur ${livreurId} with action: ${action}`);
 
         const res = await fetch(`${API_BASE}/admin/delivery-persons/${livreurId}/verify`, {
             method: 'PUT',
@@ -1120,12 +1120,12 @@ async function updateLivreurStatus(livreurId, action) {
             await loadLivreurs();
             loadPendingRequests();
 
-            console.log('✅ Livreur status updated successfully');
+            // console.log('✅ Livreur status updated successfully');
         } else {
             throw new Error(data.error || 'Erreur lors de la mise à jour');
         }
     } catch (error) {
-        console.error('❌ Error updating livreur status:', error);
+        // console.error('❌ Error updating livreur status:', error);
         showNotification('Erreur lors de la mise à jour du statut', 'error');
     }
 }
@@ -1135,7 +1135,7 @@ async function updateLivreurStatus(livreurId, action) {
 // ============================================
 
 async function loadCourses() {
-    console.log('🚕 Loading courses...');
+    // console.log('🚕 Loading courses...');
 
     try {
         const res = await fetch(`${API_BASE}/trips`);
@@ -1178,12 +1178,12 @@ async function loadCourses() {
         `).join('');
 
     } catch (error) {
-        console.error('❌ Error loading courses:', error);
+        // console.error('❌ Error loading courses:', error);
     }
 }
 
 async function showCourseDetails(courseId) {
-    console.log('Show course details:', courseId);
+    // console.log('Show course details:', courseId);
 
     // Afficher modal avec chargement
     showModal('Détails Course #' + courseId, '<div class="text-center py-8"><p>Chargement des données...</p></div>');
@@ -1301,7 +1301,7 @@ async function showCourseDetails(courseId) {
         document.getElementById('modalContent').innerHTML = modalContent;
 
     } catch (error) {
-        console.error('Error loading course details:', error);
+        // console.error('Error loading course details:', error);
         document.getElementById('modalContent').innerHTML = '<p class="text-red-500">Erreur de chargement</p>';
     }
 }
@@ -1311,7 +1311,7 @@ async function showCourseDetails(courseId) {
 // ============================================
 
 async function loadLivraisons() {
-    console.log('📦 Loading livraisons...');
+    // console.log('📦 Loading livraisons...');
 
     try {
         const res = await fetch(`${API_BASE}/livraison`);
@@ -1371,12 +1371,12 @@ async function loadLivraisons() {
         }).join('');
 
     } catch (error) {
-        console.error('❌ Error loading livraisons:', error);
+        // console.error('❌ Error loading livraisons:', error);
     }
 }
 
 async function showLivraisonDetails(livraisonId) {
-    console.log('Show livraison details:', livraisonId);
+    // console.log('Show livraison details:', livraisonId);
 
     // Afficher modal avec chargement
     showModal('Détails Livraison #' + livraisonId, '<div class="text-center py-8"><p>Chargement des données...</p></div>');
@@ -1560,7 +1560,7 @@ async function showLivraisonDetails(livraisonId) {
         document.getElementById('modalContent').innerHTML = modalContent;
 
     } catch (error) {
-        console.error('Error loading livraison details:', error);
+        // console.error('Error loading livraison details:', error);
         document.getElementById('modalContent').innerHTML = '<p class="text-red-500">Erreur de chargement</p>';
     }
 }
@@ -1570,7 +1570,7 @@ async function showLivraisonDetails(livraisonId) {
 // ============================================
 
 async function loadFinances() {
-    console.log('💰 Loading finances...');
+    // console.log('💰 Loading finances...');
 
     try {
         // ✅ OPTIMISATION: Charger une seule fois les données
@@ -1607,7 +1607,7 @@ async function loadFinances() {
         loadFinanceCharts(courses, livraisons);
 
     } catch (error) {
-        console.error('❌ Error loading finances:', error);
+        // console.error('❌ Error loading finances:', error);
     }
 }
 
@@ -1799,7 +1799,7 @@ async function loadFinanceCharts(courses = null, livraisons = null) {
         }
 
     } catch (error) {
-        console.error('❌ Error loading finance charts:', error);
+        // console.error('❌ Error loading finance charts:', error);
     }
 }
 
@@ -1808,7 +1808,7 @@ async function loadFinanceCharts(courses = null, livraisons = null) {
 // ============================================
 
 async function loadAnalytics() {
-    console.log('📈 Loading analytics...');
+    // console.log('📈 Loading analytics...');
 
     try {
         // Charger toutes les données nécessaires
@@ -1832,7 +1832,7 @@ async function loadAnalytics() {
         loadTopChauffeurs(courses, chauffeurs);
 
     } catch (error) {
-        console.error('❌ Error loading analytics:', error);
+        // console.error('❌ Error loading analytics:', error);
     }
 }
 
@@ -2185,7 +2185,7 @@ async function calculateClientStats(clientId) {
             totalDepense: totalDepense
         };
     } catch (error) {
-        console.error('Error calculating client stats:', error);
+        // console.error('Error calculating client stats:', error);
         return {
             nbCourses: 0,
             nbLivraisons: 0,
@@ -2242,7 +2242,7 @@ function showNotification(message, type = 'info') {
 // ============================================
 
 function refreshData() {
-    console.log('♻️ Refreshing all data...');
+    // console.log('♻️ Refreshing all data...');
     const activePage = document.querySelector('.page-section.active');
     if (activePage) {
         const pageId = activePage.id.replace('page-', '');
@@ -2256,21 +2256,21 @@ function refreshData() {
 // ============================================
 
 function testBackendConnection() {
-    console.log('Testing backend connection...');
+    // console.log('Testing backend connection...');
     fetch(`${API_BASE}/debug/test`)
         .then(res => res.json())
         .then(data => {
             showNotification('✅ Backend connecté', 'success');
-            console.log('Backend response:', data);
+            // console.log('Backend response:', data);
         })
         .catch(error => {
             showNotification('❌ Erreur de connexion', 'error');
-            console.error('Connection error:', error);
+            // console.error('Connection error:', error);
         });
 }
 
 function exportAllData() {
-    console.log('Exporting all data...');
+    // console.log('Exporting all data...');
     showNotification('Export en cours...', 'info');
     // TODO: Implement data export
 }
@@ -2291,7 +2291,7 @@ function testNotification() {
 // ============================================
 
 function exportClients() {
-    console.log('Exporting clients...');
+    // console.log('Exporting clients...');
     showNotification('Export clients en cours...', 'info');
 }
 
@@ -2316,7 +2316,7 @@ function nextPageClients() {
 // ============================================
 
 function showMapLayer(layer) {
-    console.log('Showing map layer:', layer);
+    // console.log('Showing map layer:', layer);
     showNotification(`Affichage: ${layer}`, 'info');
 }
 
@@ -2325,7 +2325,7 @@ function showMapLayer(layer) {
 // ============================================
 
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🚀 Vamo Admin Dashboard initialized');
+    // console.log('🚀 Vamo Admin Dashboard initialized');
 
     // Load dashboard by default
     loadDashboard();
@@ -2334,7 +2334,7 @@ document.addEventListener('DOMContentLoaded', function() {
     setInterval(() => {
         const activePage = document.querySelector('.page-section.active');
         if (activePage && activePage.id === 'page-dashboard') {
-            console.log('🔄 Auto-refresh dashboard stats...');
+            // console.log('🔄 Auto-refresh dashboard stats...');
             loadDashboardStats(); // Stats principales
             loadRecentActivity(); // Activités récentes
             // Note: Ne pas recharger les graphiques car Chart.js doit être détruit avant de recréer
@@ -2349,22 +2349,22 @@ document.addEventListener('DOMContentLoaded', function() {
             const pageId = activePage.id.replace('page-', '');
             // Refresh données des autres pages
             if (pageId === 'clients') {
-                console.log('🔄 Auto-refresh clients...');
+                // console.log('🔄 Auto-refresh clients...');
                 loadClients();
             } else if (pageId === 'chauffeurs') {
-                console.log('🔄 Auto-refresh chauffeurs...');
+                // console.log('🔄 Auto-refresh chauffeurs...');
                 loadChauffeurs();
             } else if (pageId === 'livreurs') {
-                console.log('🔄 Auto-refresh livreurs...');
+                // console.log('🔄 Auto-refresh livreurs...');
                 loadLivreurs();
             } else if (pageId === 'courses') {
-                console.log('🔄 Auto-refresh courses...');
+                // console.log('🔄 Auto-refresh courses...');
                 loadCourses();
             } else if (pageId === 'livraisons') {
-                console.log('🔄 Auto-refresh livraisons...');
+                // console.log('🔄 Auto-refresh livraisons...');
                 loadLivraisons();
             } else if (pageId === 'finances') {
-                console.log('🔄 Auto-refresh finances...');
+                // console.log('🔄 Auto-refresh finances...');
                 loadFinances();
             }
         }
@@ -2376,7 +2376,7 @@ document.addEventListener('DOMContentLoaded', function() {
 // ============================================
 
 async function loadPendingRequests() {
-    console.log('⏳ Loading pending requests...');
+    // console.log('⏳ Loading pending requests...');
 
     try {
         const [chauffeursRes, livreursRes] = await Promise.all([
@@ -2482,10 +2482,10 @@ async function loadPendingRequests() {
         html += '</div>';
         container.innerHTML = html;
 
-        console.log(`✅ Loaded ${chauffeursPending.length} chauffeur(s) and ${livreursPending.length} livreur(s) pending`);
+        // console.log(`✅ Loaded ${chauffeursPending.length} chauffeur(s) and ${livreursPending.length} livreur(s) pending`);
 
     } catch (error) {
-        console.error('❌ Error loading pending requests:', error);
+        // console.error('❌ Error loading pending requests:', error);
         document.getElementById('pendingRequests').innerHTML =
             '<p class="text-center py-8 text-red-500">Erreur de chargement des demandes</p>';
     }

@@ -25,14 +25,14 @@ async function authenticateAdmin() {
         if (data.success && data.token) {
             adminToken = data.token;
             authToken = data.token; // Pour compatibilité avec le code existant
-            console.log('✅ Admin authentifié avec succès');
+            // console.log('✅ Admin authentifié avec succès');
             return adminToken;
         } else {
-            console.error('❌ Échec d\'authentification admin:', data);
+            // console.error('❌ Échec d\'authentification admin:', data);
             return null;
         }
     } catch (error) {
-        console.error('❌ Erreur authentification admin:', error);
+        // console.error('❌ Erreur authentification admin:', error);
         return null;
     }
 }
@@ -84,7 +84,7 @@ function getPlaqueInfo(personne) {
 
 // Initialisation des graphiques
 function initializeCharts() {
-    console.log('📊 Initializing charts...');
+    // console.log('📊 Initializing charts...');
     
     // Graphique revenus hebdomadaires
     const revenusCtx = document.getElementById('revenusChart').getContext('2d');
@@ -153,7 +153,7 @@ function initializeCharts() {
 
 // Mise à jour des graphiques avec données réelles
 function updateChartsWithData(analytics) {
-    console.log('📊 Updating charts with real data...');
+    // console.log('📊 Updating charts with real data...');
     
     if (analytics.weekly && revenusChart) {
         const labels = analytics.weekly.map(day => {
@@ -393,17 +393,17 @@ function showSection(section) {
 // Fonctions modal futuriste
 function openFuturisticModal() {
     document.getElementById('modalFuturistic').classList.add('show');
-    console.log('🚀 Modal activated');
+    // console.log('🚀 Modal activated');
 }
 
 function closeFuturisticModal() {
     document.getElementById('modalFuturistic').classList.remove('show');
-    console.log('🚀 Modal deactivated');
+    // console.log('🚀 Modal deactivated');
 }
 
 // Séquence de scan système
 function initiateScanSequence() {
-    console.log('🔍 Initiating system scan sequence...');
+    // console.log('🔍 Initiating system scan sequence...');
     
     document.getElementById('modalTitle').textContent = '🔍 SYSTÈME DE SCAN EN COURS';
     document.getElementById('modalContent').innerHTML = `
@@ -446,7 +446,7 @@ function initiateScanSequence() {
 
 // Détails chauffeur avec vraies photos
 async function viewChauffeurDetails(id) {
-    console.log(`🔍 Scanning chauffeur ${id}...`);
+    // console.log(`🔍 Scanning chauffeur ${id}...`);
     
     const chauffeur = systemData.chauffeurs.find(c => c.id_chauffeur === id);
     if (!chauffeur) {
@@ -469,7 +469,7 @@ async function viewChauffeurDetails(id) {
             }
         }
     } catch (error) {
-        console.log('⚠️ Erreur chargement photos:', error);
+        // console.log('⚠️ Erreur chargement photos:', error);
     }
 
     document.getElementById('modalTitle').textContent = `🚗 SCAN CHAUFFEUR #${String(id).padStart(3, '0')}`;
@@ -606,7 +606,7 @@ async function viewChauffeurDetails(id) {
 
 // Détails livreur avec vraies photos
 async function viewLivreurDetails(id) {
-    console.log(`🔍 Scanning livreur ${id}...`);
+    // console.log(`🔍 Scanning livreur ${id}...`);
     
     const livreur = systemData.livreurs.find(l => l.id_livreur === id);
     if (!livreur) {
@@ -629,7 +629,7 @@ async function viewLivreurDetails(id) {
             }
         }
     } catch (error) {
-        console.log('⚠️ Erreur chargement photos:', error);
+        // console.log('⚠️ Erreur chargement photos:', error);
     }
 
     document.getElementById('modalTitle').textContent = `🏍️ SCAN LIVREUR #${String(id).padStart(3, '0')}`;
@@ -766,7 +766,7 @@ async function viewLivreurDetails(id) {
 
 // Actions sur les chauffeurs
 async function executeChauffeurAction(id, action) {
-    console.log(`⚡ Executing action ${action} on chauffeur ${id}...`);
+    // console.log(`⚡ Executing action ${action} on chauffeur ${id}...`);
 
     try {
         // Mapper les actions vers les endpoints admin
@@ -803,14 +803,14 @@ async function executeChauffeurAction(id, action) {
         }
 
     } catch (error) {
-        console.error('❌ Erreur action chauffeur:', error);
+        // console.error('❌ Erreur action chauffeur:', error);
         showErrorNotification('Erreur lors de l\'action');
     }
 }
 
 // Actions sur les livreurs
 async function executeLivreurAction(id, action) {
-    console.log(`⚡ Executing action ${action} on livreur ${id}...`);
+    // console.log(`⚡ Executing action ${action} on livreur ${id}...`);
 
     try {
         // Mapper les actions vers les endpoints admin
@@ -847,7 +847,7 @@ async function executeLivreurAction(id, action) {
         }
 
     } catch (error) {
-        console.error('❌ Erreur action livreur:', error);
+        // console.error('❌ Erreur action livreur:', error);
         showErrorNotification('Erreur lors de l\'action');
     }
 }
@@ -858,7 +858,7 @@ function executeSearch() {
     const status = document.getElementById('statusFilter').value;
     const type = document.getElementById('typeFilter').value;
     
-    console.log(`🔍 Searching: query="${query}", status="${status}", type="${type}"`);
+    // console.log(`🔍 Searching: query="${query}", status="${status}", type="${type}"`);
     
     let filteredChauffeurs = systemData.chauffeurs;
     let filteredLivreurs = systemData.livreurs;
@@ -902,14 +902,14 @@ function executeSearch() {
 
 // Refresh complet des données
 async function refreshAllData() {
-    console.log('♻️ Refreshing all system data...');
+    // console.log('♻️ Refreshing all system data...');
     showInfoNotification('Actualisation en cours...');
     
     try {
         await loadAllSystemData();
         showSuccessNotification('Données actualisées avec succès!');
     } catch (error) {
-        console.error('❌ Erreur refresh:', error);
+        // console.error('❌ Erreur refresh:', error);
         showErrorNotification('Erreur lors de l\'actualisation');
     }
 }
@@ -977,7 +977,7 @@ function showNotification(message, type = 'info') {
 
 // Visualisation de documents
 function viewDocument(type) {
-    console.log(`📸 Viewing document: ${type}`);
+    // console.log(`📸 Viewing document: ${type}`);
     
     // URLs d'images de démonstration
     const demoImages = {
@@ -1176,7 +1176,7 @@ function displayLivreursAsMobileCards(livreurs) {
 
 // Afficher une photo réelle depuis la base de données
 function viewRealPhoto(type, title, base64Data) {
-    console.log(`📸 Affichage photo: ${type} - ${title}`);
+    // console.log(`📸 Affichage photo: ${type} - ${title}`);
     
     if (!base64Data || base64Data.trim() === '') {
         showErrorNotification('Photo non disponible');
@@ -1230,7 +1230,7 @@ function viewRealPhoto(type, title, base64Data) {
 
 // Afficher toutes les photos d'une personne
 async function viewAllPhotos(id, type) {
-    console.log(`🖼️ Affichage toutes photos ${type} ${id}...`);
+    // console.log(`🖼️ Affichage toutes photos ${type} ${id}...`);
     
     try {
         let photosData = null;
@@ -1307,7 +1307,7 @@ async function viewAllPhotos(id, type) {
         openFuturisticModal();
         
     } catch (error) {
-        console.error('❌ Erreur chargement galerie:', error);
+        // console.error('❌ Erreur chargement galerie:', error);
         showErrorNotification('Erreur chargement galerie photos');
     }
 }
@@ -1323,7 +1323,7 @@ function downloadPhoto(title, imageSrc) {
         document.body.removeChild(link);
         showSuccessNotification('Photo téléchargée !');
     } catch (error) {
-        console.error('❌ Erreur téléchargement:', error);
+        // console.error('❌ Erreur téléchargement:', error);
         showErrorNotification('Erreur téléchargement photo');
     }
 }
@@ -1342,7 +1342,7 @@ function rejectPhoto(type) {
 
 // 🔍 FONCTION DE DEBUG POUR TESTER UN LIVREUR SPÉCIFIQUE
 async function debugLivreurByPhone(telephone) {
-    console.log(`🔍 Debug livreur par téléphone: ${telephone}`);
+    // console.log(`🔍 Debug livreur par téléphone: ${telephone}`);
     
     try {
         const response = await fetch(`${API_ADVANCED_BASE}/debug/livreur/telephone/${telephone}`, {
@@ -1352,7 +1352,7 @@ async function debugLivreurByPhone(telephone) {
         const data = await response.json();
         
         if (response.ok && data.success) {
-            console.log('✅ Livreur trouvé:', data);
+            // console.log('✅ Livreur trouvé:', data);
             
             // Afficher les détails dans le modal
             document.getElementById('modalTitle').textContent = `🔍 DEBUG LIVREUR - ${data.livreur.prenom} ${data.livreur.nom}`;
@@ -1411,12 +1411,12 @@ async function debugLivreurByPhone(telephone) {
             openFuturisticModal();
             
         } else {
-            console.error('❌ Livreur non trouvé:', data);
+            // console.error('❌ Livreur non trouvé:', data);
             showErrorNotification(`Livreur ${telephone} non trouvé: ${data.error}`);
         }
         
     } catch (error) {
-        console.error('❌ Erreur debug livreur:', error);
+        // console.error('❌ Erreur debug livreur:', error);
         showErrorNotification('Erreur lors du debug');
     }
 }
@@ -1424,6 +1424,6 @@ async function debugLivreurByPhone(telephone) {
 // Fonction d'aide pour tester depuis la console
 window.testLivreur777794040 = () => debugLivreurByPhone('777794040');
 
-console.log('🚀 COMMAND CENTER FUNCTIONS LOADED');
-console.log('⚡ NEURAL NETWORK OPERATIONAL');
-console.log('🎯 ALL SYSTEMS GO!');
+// console.log('🚀 COMMAND CENTER FUNCTIONS LOADED');
+// console.log('⚡ NEURAL NETWORK OPERATIONAL');
+// console.log('🎯 ALL SYSTEMS GO!');
