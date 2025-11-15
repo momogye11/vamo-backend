@@ -76,6 +76,12 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 
+// 🔐 Authentication simple (en mémoire pour l'instant)
+const activeSessions = new Set();
+
+// Exporter activeSessions pour que les routes puissent y accéder
+module.exports.activeSessions = activeSessions;
+
 // 🔒 FORCER HTTPS en production (Railway)
 app.use((req, res, next) => {
     // Exclure le healthcheck Railway
@@ -95,36 +101,30 @@ app.use((req, res, next) => {
     next();
 });
 
+// 🔐 Middleware de protection pour dashboard.html (AVANT express.static)
+app.use((req, res, next) => {
+    // Si c'est dashboard.html, vérifier l'authentification
+    if (req.path === '/dashboard.html' || req.path === '/' || req.path === '') {
+        const token = req.query.token || req.cookies?.vamo_admin_token;
+
+        if (token && activeSessions.has(token)) {
+            // Token valide - autoriser l'accès
+            if (req.path === '/' || req.path === '') {
+                return res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
+            }
+            return next();
+        } else {
+            // Pas de token ou invalide - rediriger vers login
+            return res.redirect('/login.html');
+        }
+    }
+
+    // Pour les autres fichiers, continuer normalement
+    next();
+});
+
 // 🎨 Servir le dashboard admin (fichiers statiques)
 app.use(express.static(path.join(__dirname, 'public')));
-
-// 🏠 Route pour la page d'accueil - Dashboard Admin (protégée)
-app.get('/', (req, res) => {
-    // Vérifier si le token est présent (dans query ou localStorage sera vérifié côté client)
-    const token = req.query.token;
-    if (token && activeSessions.has(token)) {
-        res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
-    } else {
-        // Si pas de token ou token invalide, rediriger vers login
-        res.redirect('/login.html');
-    }
-});
-
-// Route dashboard explicite (aussi protégée)
-app.get('/dashboard.html', (req, res) => {
-    const token = req.query.token;
-    if (token && activeSessions.has(token)) {
-        res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
-    } else {
-        res.redirect('/login.html');
-    }
-});
-
-// 🔐 Authentication simple (en mémoire pour l'instant)
-const activeSessions = new Set();
-
-// Exporter activeSessions pour que les routes puissent y accéder
-module.exports.activeSessions = activeSessions;
 
 // 📧 Fonction pour envoyer une notification d'inscription
 async function notifyNewRegistration(type, data) {
