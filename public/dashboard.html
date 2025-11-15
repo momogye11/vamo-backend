@@ -420,6 +420,10 @@
                 <span class="nav-icon">📈</span>
                 <span>Analytics</span>
             </a>
+            <a class="nav-item" onclick="showPage('kpis')">
+                <span class="nav-icon">🎯</span>
+                <span>KPIs Business</span>
+            </a>
             <a class="nav-item" onclick="showPage('messages')">
                 <span class="nav-icon">💬</span>
                 <span>Messages</span>
@@ -924,6 +928,156 @@
             </div>
         </div>
 
+        <!-- KPIs BUSINESS PAGE -->
+        <div id="page-kpis" class="page-section">
+            <div class="mb-6">
+                <h2 class="text-2xl font-bold mb-2" style="color: var(--vamo-gold);">
+                    🎯 KPIs Business - Métriques Clés
+                </h2>
+                <p class="text-gray-600">Suivez les indicateurs critiques pour votre croissance et votre fundraising</p>
+            </div>
+
+            <!-- Filtres de période -->
+            <div class="card p-4 mb-6">
+                <div class="flex flex-wrap gap-4 items-center">
+                    <div>
+                        <label class="text-sm font-semibold text-gray-700 mb-1 block">Période:</label>
+                        <select id="kpi-period-filter" class="search-input" onchange="loadKPIs()">
+                            <option value="today">Aujourd'hui</option>
+                            <option value="week" selected>7 derniers jours</option>
+                            <option value="month">30 derniers jours</option>
+                            <option value="custom">Personnalisé</option>
+                        </select>
+                    </div>
+                    <div id="kpi-custom-dates" style="display: none;" class="flex gap-2">
+                        <div>
+                            <label class="text-sm font-semibold text-gray-700 mb-1 block">Du:</label>
+                            <input type="date" id="kpi-start-date" class="search-input">
+                        </div>
+                        <div>
+                            <label class="text-sm font-semibold text-gray-700 mb-1 block">Au:</label>
+                            <input type="date" id="kpi-end-date" class="search-input">
+                        </div>
+                    </div>
+                    <button onclick="loadKPIs()" class="btn-primary mt-auto">
+                        🔄 Actualiser
+                    </button>
+                </div>
+            </div>
+
+            <!-- KPIs en chargement -->
+            <div id="kpis-loading" class="text-center py-12">
+                <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-gold"></div>
+                <p class="mt-4 text-gray-600">Chargement des KPIs...</p>
+            </div>
+
+            <!-- KPIs content -->
+            <div id="kpis-content" style="display: none;">
+                <!-- 1. Active Drivers - #1 KPI -->
+                <div class="mb-8">
+                    <h3 class="text-lg font-bold mb-4" style="color: var(--vamo-gold);">
+                        🟦 1. Chauffeurs Actifs / Jour (#1 KPI)
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div id="kpi-active-drivers-card" class="stat-card"></div>
+                        <div class="stat-card col-span-2">
+                            <canvas id="chart-active-drivers" height="100"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. Active Riders -->
+                <div class="mb-8">
+                    <h3 class="text-lg font-bold mb-4" style="color: var(--vamo-gold);">
+                        🟦 2. Clients Actifs / Jour
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div id="kpi-active-riders-card" class="stat-card"></div>
+                        <div class="stat-card col-span-2">
+                            <canvas id="chart-active-riders" height="100"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. Completed Rides -->
+                <div class="mb-8">
+                    <h3 class="text-lg font-bold mb-4" style="color: var(--vamo-gold);">
+                        🟨 3. Courses Complétées / Jour (Traction YC)
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div id="kpi-completed-rides-card" class="stat-card"></div>
+                        <div class="stat-card col-span-2">
+                            <canvas id="chart-completed-rides" height="100"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4. Matching Time -->
+                <div class="mb-8">
+                    <h3 class="text-lg font-bold mb-4" style="color: var(--vamo-gold);">
+                        🟧 4. Temps d'Attente Moyen (Qualité de Service)
+                    </h3>
+                    <div id="kpi-matching-time-card" class="stat-card"></div>
+                </div>
+
+                <!-- 5. Acceptance Rate -->
+                <div class="mb-8">
+                    <h3 class="text-lg font-bold mb-4" style="color: var(--vamo-gold);">
+                        🟥 5. Taux d'Acceptation Chauffeurs
+                    </h3>
+                    <div id="kpi-acceptance-rate-card" class="stat-card"></div>
+                </div>
+
+                <!-- 6. Cancellation Rate -->
+                <div class="mb-8">
+                    <h3 class="text-lg font-bold mb-4" style="color: var(--vamo-gold);">
+                        🟪 6. Taux d'Annulation
+                    </h3>
+                    <div id="kpi-cancellation-rate-card" class="stat-card"></div>
+                </div>
+
+                <!-- 7. Driver Retention -->
+                <div class="mb-8">
+                    <h3 class="text-lg font-bold mb-4" style="color: var(--vamo-gold);">
+                        🟫 7. Rétention Chauffeurs
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4" id="kpi-driver-retention-cards"></div>
+                </div>
+
+                <!-- 8. Rider Retention -->
+                <div class="mb-8">
+                    <h3 class="text-lg font-bold mb-4" style="color: var(--vamo-gold);">
+                        🟨 8. Rétention Clients
+                    </h3>
+                    <div id="kpi-rider-retention-card" class="stat-card"></div>
+                </div>
+
+                <!-- 9. DAU/WAU/MAU -->
+                <div class="mb-8">
+                    <h3 class="text-lg font-bold mb-4" style="color: var(--vamo-gold);">
+                        🟦 9. DAU / WAU / MAU (Croissance)
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4" id="kpi-dau-wau-mau-cards"></div>
+                </div>
+
+                <!-- 10. Supply/Demand Ratio -->
+                <div class="mb-8">
+                    <h3 class="text-lg font-bold mb-4" style="color: var(--vamo-gold);">
+                        🔵 10. Ratio Offre/Demande
+                    </h3>
+                    <div id="kpi-supply-demand-card" class="stat-card"></div>
+                </div>
+
+                <!-- 11. Activation Rates -->
+                <div class="mb-8">
+                    <h3 class="text-lg font-bold mb-4" style="color: var(--vamo-gold);">
+                        ⭐ 11. Taux d'Activation (Onboarding)
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="kpi-activation-cards"></div>
+                </div>
+            </div>
+        </div>
+
         <!-- MESSAGES PAGE -->
         <div id="page-messages" class="page-section">
             <div class="card p-6">
@@ -1022,5 +1176,6 @@
 
     <script src="config.js"></script>
     <script src="dashboard-functions.js"></script>
+    <script src="kpis-functions.js"></script>
 </body>
 </html>

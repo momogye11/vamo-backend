@@ -100,6 +100,9 @@ function loadPageData(pageName) {
         case 'analytics':
             loadAnalytics();
             break;
+        case 'kpis':
+            loadKPIs();
+            break;
     }
 }
 
