@@ -132,12 +132,13 @@ router.get('/clients', authenticateAdmin, async (req, res) => {
         const offset = (page - 1) * limit;
 
         const result = await db.query(`
-            SELECT 
-                id_client as id, nom, prenom, telephone, 
+            SELECT
+                id_client as id, nom, prenom, telephone,
                 date_creation as created_at,
+                date_creation as date_inscription,
                 (SELECT COUNT(*) FROM Course WHERE id_client = Client.id_client) as total_trips
-            FROM Client 
-            ORDER BY date_creation DESC 
+            FROM Client
+            ORDER BY date_creation DESC
             LIMIT $1 OFFSET $2
         `, [limit, offset]);
 
