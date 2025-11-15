@@ -78,6 +78,11 @@ app.use(express.json());
 
 // 🔒 FORCER HTTPS en production (Railway)
 app.use((req, res, next) => {
+    // Exclure le healthcheck Railway
+    if (req.path === '/api/test') {
+        return next();
+    }
+
     // Vérifier si on est en production (Railway) et si la requête est en HTTP
     const proto = req.headers['x-forwarded-proto'] || req.protocol;
     const host = req.headers['x-forwarded-host'] || req.get('host');
