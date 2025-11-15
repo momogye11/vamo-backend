@@ -1,39 +1,37 @@
 const express = require('express');
 const router = express.Router();
-const nodemailer = require('nodemailer');
 const db = require('../db');
 
-// 📧 Configuration nodemailer
-let transporter = null;
+// 📧 Import Resend (service d'email moderne)
+let Resend;
+let resend = null;
 
-// Initialiser le transporteur email
-function initializeEmailTransporter() {
-    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) {
-        console.log('⚠️ Email credentials not configured');
+// Essayer d'importer Resend
+try {
+    const ResendModule = require('resend');
+    Resend = ResendModule.Resend;
+} catch (error) {
+    console.log('⚠️ Resend module not available');
+}
+
+// Initialiser Resend
+function initializeEmailService() {
+    if (!process.env.RESEND_API_KEY) {
+        console.log('⚠️ RESEND_API_KEY not configured');
+        return null;
+    }
+
+    if (!Resend) {
+        console.log('⚠️ Resend module not available');
         return null;
     }
 
     try {
-        transporter = nodemailer.createTransport({
-            service: 'gmail',
-            auth: {
-                user: process.env.EMAIL_USER,
-                pass: process.env.EMAIL_PASSWORD
-            },
-            // Configuration plus robuste
-            pool: false,
-            connectionTimeout: 10000, // 10 secondes
-            greetingTimeout: 10000,
-            socketTimeout: 10000,
-            secure: true,
-            tls: {
-                rejectUnauthorized: false
-            }
-        });
-        console.log('✅ Email transporter initialized');
-        return transporter;
+        resend = new Resend(process.env.RESEND_API_KEY);
+        console.log('✅ Resend email service initialized');
+        return resend;
     } catch (error) {
-        console.error('❌ Error initializing email transporter:', error);
+        console.error('❌ Error initializing Resend:', error);
         return null;
     }
 }
@@ -72,17 +70,19 @@ router.post('/send-login-code', async (req, res) => {
 
         console.log(`🔐 Code de connexion généré pour ${email}: ${code}`);
 
-        // Initialiser le transporteur si pas déjà fait
-        if (!transporter) {
-            transporter = initializeEmailTransporter();
+        // Initialiser Resend si pas déjà fait
+        if (!resend) {
+            resend = initializeEmailService();
         }
 
-        // Envoyer l'email
-        if (transporter) {
+        // Envoyer l'email avec Resend
+        if (resend) {
             try {
-                await transporter.sendMail({
-                    from: `"Vamo Admin" <${process.env.EMAIL_USER}>`,
-                    to: email,
+                const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
+
+                const { data, error } = await resend.emails.send({
+                    from: fromEmail,
+                    to: [email],
                     subject: '🔐 Code de connexion Vamo Admin',
                     html: `
                         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -115,7 +115,12 @@ router.post('/send-login-code', async (req, res) => {
                     `
                 });
 
-                console.log(`✅ Code envoyé par email à ${email}`);
+                if (error) {
+                    throw error;
+                }
+
+                console.log(`✅ Email envoyé avec succès via Resend à ${email}`);
+                console.log(`📧 Email ID: ${data?.id}`);
 
                 res.json({
                     success: true,
@@ -140,21 +145,19 @@ router.post('/send-login-code', async (req, res) => {
                 });
             }
         } else {
-            // Si nodemailer n'est pas configuré, on retourne le code en mode dev
-            if (process.env.NODE_ENV === 'development') {
-                console.log(`🔧 Mode développement - Code: ${code}`);
-                res.json({
-                    success: true,
-                    message: 'Mode développement - Code disponible dans la console',
-                    code: code, // À RETIRER EN PRODUCTION
-                    expiresIn: 300
-                });
-            } else {
-                res.status(500).json({
-                    success: false,
-                    message: 'Service email non configuré'
-                });
-            }
+            // Si Resend n'est pas configuré, mode fallback
+            console.log(`⚠️ Resend non configuré - Mode fallback`);
+            console.log(`🔐 CODE DE CONNEXION: ${code}`);
+            console.log(`📧 Email destinataire: ${email}`);
+
+            res.json({
+                success: true,
+                message: 'Code généré. Configurez RESEND_API_KEY pour recevoir les emails.',
+                code: code,
+                expiresIn: 300,
+                emailError: true,
+                hint: 'Regardez la console du navigateur ou les logs Railway pour le code'
+            });
         }
     } catch (error) {
         console.error('❌ Erreur send-login-code:', error);
