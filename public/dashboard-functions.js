@@ -1207,16 +1207,22 @@ async function showCourseDetails(courseId) {
 
     try {
         // ✅ VRAIES DONNÉES - Charger les infos complètes de la course
-        const [coursesRes, clientsRes, chauffeursRes] = await Promise.all([
+        const token = localStorage.getItem('vamo_admin_token');
+        const [coursesRes, clientsRes, chauffeursRes, arretsRes] = await Promise.all([
             fetch(`${API_BASE}/trips`),
             fetch(`${API_BASE}/client`),
-            fetch(`${API_BASE}/debug/chauffeurs`)
+            fetch(`${API_BASE}/debug/chauffeurs`),
+            fetch(`${API_BASE}/admin/courses/${courseId}/arrets`, {
+                headers: { 'x-auth-token': token }
+            })
         ]);
 
         const courses = await coursesRes.json();
         const clients = await clientsRes.json();
         const chauffeursData = await chauffeursRes.json();
         const chauffeurs = chauffeursData.chauffeurs || [];
+        const arretsData = await arretsRes.json();
+        const arrets = arretsData.arrets || [];
 
         const course = courses.find(c => c.id_course === courseId);
 
@@ -1260,6 +1266,18 @@ async function showCourseDetails(courseId) {
                             <p class="text-sm font-medium">${course.adresse_depart || 'N/A'}</p>
                             ${course.latitude_depart ? `<p class="text-xs text-gray-500">📍 ${course.latitude_depart}, ${course.longitude_depart}</p>` : ''}
                         </div>
+                        ${arrets && arrets.length > 0 ? `
+                            ${arrets.map((arret, index) => `
+                                <div class="flex items-center justify-center py-1">
+                                    <span class="text-2xl">↓</span>
+                                </div>
+                                <div class="p-2 bg-blue-50 border border-blue-200 rounded">
+                                    <p class="text-xs text-blue-600 font-semibold">📍 Arrêt #${index + 1} - ${arret.statut === 'atteint' ? '✅ Atteint' : arret.statut === 'passe' ? '⏩ Passé' : '⏳ En attente'}</p>
+                                    <p class="text-sm font-medium mt-1">${arret.adresse}</p>
+                                    ${arret.heure_arrivee ? `<p class="text-xs text-gray-500 mt-1">⏰ ${formatDate(arret.heure_arrivee)}</p>` : ''}
+                                </div>
+                            `).join('')}
+                        ` : ''}
                         <div class="flex items-center justify-center py-1">
                             <span class="text-2xl">↓</span>
                         </div>
@@ -1400,8 +1418,17 @@ async function showLivraisonDetails(livraisonId) {
 
     try {
         // ✅ OPTIMISATION: Un seul appel API - le backend retourne déjà les données jointes
-        const livraisonsRes = await fetch(`${API_BASE}/livraison`);
+        const token = localStorage.getItem('vamo_admin_token');
+        const [livraisonsRes, arretsRes] = await Promise.all([
+            fetch(`${API_BASE}/livraison`),
+            fetch(`${API_BASE}/admin/livraisons/${livraisonId}/arrets`, {
+                headers: { 'x-auth-token': token }
+            })
+        ]);
+
         const livraisons = await livraisonsRes.json();
+        const arretsData = await arretsRes.json();
+        const arrets = arretsData.arrets || [];
 
         const livraison = livraisons.find(l => l.id_livraison === livraisonId);
 
@@ -1519,6 +1546,18 @@ async function showLivraisonDetails(livraisonId) {
                             <p class="text-sm font-medium">${livraison.adresse_depart || 'N/A'}</p>
                             ${livraison.latitude_depart ? `<p class="text-xs text-gray-500">📍 ${livraison.latitude_depart}, ${livraison.longitude_depart}</p>` : ''}
                         </div>
+                        ${arrets && arrets.length > 0 ? `
+                            ${arrets.map((arret, index) => `
+                                <div class="flex items-center justify-center py-1">
+                                    <span class="text-2xl">↓</span>
+                                </div>
+                                <div class="p-2 bg-purple-50 border border-purple-200 rounded">
+                                    <p class="text-xs text-purple-600 font-semibold">📍 Arrêt #${index + 1} - ${arret.statut === 'atteint' ? '✅ Atteint' : arret.statut === 'passe' ? '⏩ Passé' : '⏳ En attente'}</p>
+                                    <p class="text-sm font-medium mt-1">${arret.adresse}</p>
+                                    ${arret.heure_arrivee ? `<p class="text-xs text-gray-500 mt-1">⏰ ${formatDate(arret.heure_arrivee)}</p>` : ''}
+                                </div>
+                            `).join('')}
+                        ` : ''}
                         <div class="flex items-center justify-center py-1">
                             <span class="text-2xl">↓</span>
                         </div>

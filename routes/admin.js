@@ -653,4 +653,70 @@ router.post('/cleanup', authenticateAdmin, async (req, res) => {
     }
 });
 
+// Récupérer les arrêts intermédiaires d'une course
+router.get('/courses/:id/arrets', authenticateAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const result = await db.query(`
+            SELECT
+                id_arret,
+                ordre_arret,
+                adresse,
+                latitude,
+                longitude,
+                statut,
+                heure_arrivee,
+                date_creation
+            FROM arrets_intermediaires
+            WHERE id_course = $1
+            ORDER BY ordre_arret ASC
+        `, [id]);
+
+        res.json({
+            success: true,
+            arrets: result.rows
+        });
+    } catch (error) {
+        console.error('❌ Erreur récupération arrêts course:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Erreur lors de la récupération des arrêts'
+        });
+    }
+});
+
+// Récupérer les arrêts intermédiaires d'une livraison
+router.get('/livraisons/:id/arrets', authenticateAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const result = await db.query(`
+            SELECT
+                id_arret,
+                ordre_arret,
+                adresse,
+                latitude,
+                longitude,
+                statut,
+                heure_arrivee,
+                date_creation
+            FROM arrets_intermediaires_livraison
+            WHERE id_livraison = $1
+            ORDER BY ordre_arret ASC
+        `, [id]);
+
+        res.json({
+            success: true,
+            arrets: result.rows
+        });
+    } catch (error) {
+        console.error('❌ Erreur récupération arrêts livraison:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Erreur lors de la récupération des arrêts'
+        });
+    }
+});
+
 module.exports = router;
