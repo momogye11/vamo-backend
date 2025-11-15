@@ -218,6 +218,31 @@ router.post('/verify-login-code', (req, res) => {
     }
 });
 
+// 🚪 Route pour déconnexion (invalider le token)
+router.post('/logout', (req, res) => {
+    try {
+        const token = req.headers['x-auth-token'] || req.body.token;
+
+        if (token) {
+            // Supprimer le token des sessions actives
+            const activeSessions = require('../index').activeSessions;
+            if (activeSessions) {
+                activeSessions.delete(token);
+            }
+        }
+
+        res.json({
+            success: true,
+            message: 'Déconnexion réussie'
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Erreur lors de la déconnexion'
+        });
+    }
+});
+
 // 🧹 Nettoyer les codes expirés toutes les minutes
 setInterval(() => {
     const now = Date.now();

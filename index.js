@@ -76,6 +76,20 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 
+// 🔒 FORCER HTTPS en production (Railway)
+app.use((req, res, next) => {
+    // Vérifier si on est en production (Railway) et si la requête est en HTTP
+    const proto = req.headers['x-forwarded-proto'] || req.protocol;
+    const host = req.headers['x-forwarded-host'] || req.get('host');
+
+    // Si en production (pas localhost) et protocole HTTP, rediriger vers HTTPS
+    if (proto === 'http' && !host.includes('localhost') && !host.includes('127.0.0.1')) {
+        return res.redirect(301, `https://${host}${req.url}`);
+    }
+
+    next();
+});
+
 // 🎨 Servir le dashboard admin (fichiers statiques)
 app.use(express.static(path.join(__dirname, 'public')));
 

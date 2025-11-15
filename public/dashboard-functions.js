@@ -2321,6 +2321,37 @@ function showMapLayer(layer) {
 }
 
 // ============================================
+// SECURITY - LOGOUT
+// ============================================
+
+function logout() {
+    if (confirm('Êtes-vous sûr de vouloir vous déconnecter ?')) {
+        // Get token
+        const token = localStorage.getItem('vamo_admin_token');
+
+        // Call API to invalidate session server-side
+        if (token) {
+            fetch(`${API_BASE}/api/admin/logout`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-auth-token': token
+                }
+            }).catch(() => {
+                // Ignore errors - proceed with logout anyway
+            });
+        }
+
+        // Clear local storage
+        localStorage.removeItem('vamo_admin_token');
+        sessionStorage.clear();
+
+        // Redirect to login
+        window.location.replace('/login.html');
+    }
+}
+
+// ============================================
 // INIT ON LOAD
 // ============================================
 
