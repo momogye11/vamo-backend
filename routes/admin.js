@@ -325,7 +325,7 @@ router.put('/drivers/:id/verify', authenticateAdmin, async (req, res) => {
         let newStatus, isActive;
         switch(action) {
             case 'approve':
-                newStatus = 'verifie';
+                newStatus = 'approuve';
                 isActive = true;
                 break;
             case 'reject':
@@ -339,7 +339,7 @@ router.put('/drivers/:id/verify', authenticateAdmin, async (req, res) => {
         }
 
         await db.query(`
-            UPDATE Chauffeur 
+            UPDATE Chauffeur
             SET statut_validation = $1, disponibilite = $2
             WHERE id_chauffeur = $3
         `, [newStatus, isActive, id]);
@@ -381,7 +381,7 @@ router.put('/delivery-persons/:id/verify', authenticateAdmin, async (req, res) =
         let newStatus, isActive;
         switch(action) {
             case 'approve':
-                newStatus = 'verifie';
+                newStatus = 'approuve';
                 isActive = true;
                 break;
             case 'reject':
@@ -395,7 +395,7 @@ router.put('/delivery-persons/:id/verify', authenticateAdmin, async (req, res) =
         }
 
         await db.query(`
-            UPDATE Livreur 
+            UPDATE Livreur
             SET statut_validation = $1, disponibilite = $2
             WHERE id_livreur = $3
         `, [newStatus, isActive, id]);
