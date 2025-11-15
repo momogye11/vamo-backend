@@ -730,6 +730,17 @@ try {
     console.error('❌ Stack trace:', error.stack);
 }
 
+// 📊 Admin KPIs routes
+console.log('Loading admin KPIs routes...');
+try {
+    const adminKpisRouter = require('./routes/admin-kpis');
+    app.use('/api/admin/kpis', adminKpisRouter);
+    console.log('✅ Admin KPIs routes loaded successfully');
+} catch (error) {
+    console.error('❌ Error loading admin KPIs routes:', error);
+    console.error('❌ Stack trace:', error.stack);
+}
+
 // 👇 Tu peux aussi ajouter les autres si tu veux
 app.use('/api/client', require('./routes/client'));
 
