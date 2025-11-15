@@ -81,7 +81,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // 🏠 Route pour la page d'accueil - Dashboard Admin
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
 });
 
 // Test endpoint
