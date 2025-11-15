@@ -30,6 +30,7 @@ router.get('/all', authenticateAdmin, async (req, res) => {
 
         // Calculer tous les KPIs en parallèle
         const [
+            // Ride-sharing KPIs
             activeDrivers,
             activeRiders,
             completedRides,
@@ -40,8 +41,27 @@ router.get('/all', authenticateAdmin, async (req, res) => {
             riderRetention,
             dau_wau_mau,
             supplyDemandRatio,
-            activationRates
+            activationRates,
+            // Delivery KPIs
+            activeDeliveryPersons,
+            activeDeliveryClients,
+            completedDeliveries,
+            deliveryMatchingTime,
+            deliveryAcceptanceRate,
+            deliveryCancellationRate,
+            deliveryPersonRetention,
+            deliveryClientRetention,
+            deliveryDAU_WAU_MAU,
+            deliverySupplyDemandRatio,
+            deliveryActivationRates,
+            // Global KPIs (Combined)
+            globalActiveWorkers,
+            globalActiveUsers,
+            globalCompletedJobs,
+            globalRetention,
+            globalDAU_WAU_MAU
         ] = await Promise.all([
+            // Ride-sharing
             getActiveDriversPerDay(dateRange),
             getActiveRidersPerDay(dateRange),
             getCompletedRidesPerDay(dateRange),
@@ -52,7 +72,25 @@ router.get('/all', authenticateAdmin, async (req, res) => {
             getRiderRetention(),
             getDAU_WAU_MAU(),
             getSupplyDemandRatio(dateRange),
-            getActivationRates()
+            getActivationRates(),
+            // Delivery
+            getActiveDeliveryPersonsPerDay(dateRange),
+            getActiveDeliveryClientsPerDay(dateRange),
+            getCompletedDeliveriesPerDay(dateRange),
+            getDeliveryMatchingTime(dateRange),
+            getDeliveryAcceptanceRate(dateRange),
+            getDeliveryCancellationRate(dateRange),
+            getDeliveryPersonRetention(),
+            getDeliveryClientRetention(),
+            getDeliveryDAU_WAU_MAU(),
+            getDeliverySupplyDemandRatio(dateRange),
+            getDeliveryActivationRates(),
+            // Global
+            getGlobalActiveWorkersPerDay(dateRange),
+            getGlobalActiveUsersPerDay(dateRange),
+            getGlobalCompletedJobsPerDay(dateRange),
+            getGlobalRetention(),
+            getGlobalDAU_WAU_MAU()
         ]);
 
         res.json({
@@ -60,17 +98,42 @@ router.get('/all', authenticateAdmin, async (req, res) => {
             period: period,
             dateRange: dateRange,
             kpis: {
-                activeDrivers,
-                activeRiders,
-                completedRides,
-                matchingTime,
-                acceptanceRate,
-                cancellationRate,
-                driverRetention,
-                riderRetention,
-                dau_wau_mau,
-                supplyDemandRatio,
-                activationRates
+                // Ride-sharing
+                ridesharing: {
+                    activeDrivers,
+                    activeRiders,
+                    completedRides,
+                    matchingTime,
+                    acceptanceRate,
+                    cancellationRate,
+                    driverRetention,
+                    riderRetention,
+                    dau_wau_mau,
+                    supplyDemandRatio,
+                    activationRates
+                },
+                // Delivery
+                delivery: {
+                    activeDeliveryPersons,
+                    activeDeliveryClients,
+                    completedDeliveries,
+                    deliveryMatchingTime,
+                    deliveryAcceptanceRate,
+                    deliveryCancellationRate,
+                    deliveryPersonRetention,
+                    deliveryClientRetention,
+                    deliveryDAU_WAU_MAU,
+                    deliverySupplyDemandRatio,
+                    deliveryActivationRates
+                },
+                // Global (Combined)
+                global: {
+                    activeWorkers: globalActiveWorkers,
+                    activeUsers: globalActiveUsers,
+                    completedJobs: globalCompletedJobs,
+                    retention: globalRetention,
+                    dau_wau_mau: globalDAU_WAU_MAU
+                }
             }
         });
 
@@ -506,6 +569,485 @@ async function getActivationRates() {
                 ? Math.round((clientData.completed_ride / clientData.total_registered) * 100)
                 : 0
         }
+    };
+}
+
+// ============================================
+// DELIVERY KPIs
+// ============================================
+
+// 🟩 1. Active Delivery Persons / day
+async function getActiveDeliveryPersonsPerDay(dateRange) {
+    const result = await db.query(`
+        SELECT
+            DATE(date_heure_depart) as date,
+            COUNT(DISTINCT id_livreur) as active_delivery_persons
+        FROM Livraison
+        WHERE DATE(date_heure_depart) >= $1 AND DATE(date_heure_depart) <= $2
+        AND etat_livraison != 'annulee'
+        GROUP BY DATE(date_heure_depart)
+        ORDER BY date DESC
+    `, [dateRange.start, dateRange.end]);
+
+    const total = result.rows.reduce((sum, row) => sum + parseInt(row.active_delivery_persons), 0);
+    const avg = result.rows.length > 0 ? total / result.rows.length : 0;
+
+    return {
+        current: result.rows[0]?.active_delivery_persons || 0,
+        average: Math.round(avg),
+        trend: result.rows.slice(0, 7),
+        benchmark: getBenchmark(avg, [
+            { threshold: 3, level: 'critical', label: 'Insuffisant' },
+            { threshold: 20, level: 'warning', label: 'En croissance' },
+            { threshold: 100, level: 'good', label: 'Bon niveau' },
+            { threshold: 500, level: 'excellent', label: 'Excellent' }
+        ])
+    };
+}
+
+// 🟩 2. Active Delivery Clients / day
+async function getActiveDeliveryClientsPerDay(dateRange) {
+    const result = await db.query(`
+        SELECT
+            DATE(date_heure_depart) as date,
+            COUNT(DISTINCT id_client) as active_clients
+        FROM Livraison
+        WHERE DATE(date_heure_depart) >= $1 AND DATE(date_heure_depart) <= $2
+        AND etat_livraison != 'annulee'
+        GROUP BY DATE(date_heure_depart)
+        ORDER BY date DESC
+    `, [dateRange.start, dateRange.end]);
+
+    const total = result.rows.reduce((sum, row) => sum + parseInt(row.active_clients), 0);
+    const avg = result.rows.length > 0 ? total / result.rows.length : 0;
+
+    return {
+        current: result.rows[0]?.active_clients || 0,
+        average: Math.round(avg),
+        trend: result.rows.slice(0, 7)
+    };
+}
+
+// 🟩 3. Completed Deliveries / day
+async function getCompletedDeliveriesPerDay(dateRange) {
+    const result = await db.query(`
+        SELECT
+            DATE(date_heure_depart) as date,
+            COUNT(*) as deliveries
+        FROM Livraison
+        WHERE DATE(date_heure_depart) >= $1 AND DATE(date_heure_depart) <= $2
+        AND etat_livraison = 'terminee'
+        GROUP BY DATE(date_heure_depart)
+        ORDER BY date DESC
+    `, [dateRange.start, dateRange.end]);
+
+    const totalResult = await db.query(`
+        SELECT COUNT(*) as total
+        FROM Livraison
+        WHERE DATE(date_heure_depart) >= $1 AND DATE(date_heure_depart) <= $2
+        AND etat_livraison = 'terminee'
+    `, [dateRange.start, dateRange.end]);
+
+    const total = result.rows.reduce((sum, row) => sum + parseInt(row.deliveries), 0);
+    const avg = result.rows.length > 0 ? total / result.rows.length : 0;
+
+    return {
+        average: Math.round(avg),
+        total: parseInt(totalResult.rows[0]?.total) || 0,
+        trend: result.rows.slice(0, 7),
+        benchmark: getBenchmark(avg, [
+            { threshold: 5, level: 'critical', label: 'Très faible' },
+            { threshold: 50, level: 'warning', label: 'Croissance à suivre' },
+            { threshold: 200, level: 'good', label: 'Bon volume' },
+            { threshold: 1000, level: 'excellent', label: 'Forte activité' }
+        ])
+    };
+}
+
+// 🟩 4. Delivery Matching Time
+async function getDeliveryMatchingTime(dateRange) {
+    const result = await db.query(`
+        SELECT AVG(EXTRACT(EPOCH FROM (date_heure_acceptation - date_heure_depart)) / 60) as avg_minutes
+        FROM Livraison
+        WHERE DATE(date_heure_depart) >= $1 AND DATE(date_heure_depart) <= $2
+        AND etat_livraison != 'annulee'
+        AND date_heure_acceptation IS NOT NULL
+    `, [dateRange.start, dateRange.end]);
+
+    const avgMinutes = parseFloat(result.rows[0]?.avg_minutes) || 0;
+
+    return {
+        value: Math.round(avgMinutes * 10) / 10,
+        benchmark: getBenchmark(avgMinutes, [
+            { threshold: 1, level: 'excellent', label: 'Excellent (< 1 min)' },
+            { threshold: 3, level: 'good', label: 'Bon (1-3 min)' },
+            { threshold: 5, level: 'warning', label: 'Acceptable (3-5 min)' },
+            { threshold: 999, level: 'critical', label: 'Trop lent (> 5 min)' }
+        ], true)
+    };
+}
+
+// 🟩 5. Delivery Acceptance Rate
+async function getDeliveryAcceptanceRate(dateRange) {
+    const result = await db.query(`
+        SELECT
+            COUNT(*) as total_requests,
+            COUNT(*) FILTER (WHERE etat_livraison NOT IN ('annulee', 'en_attente')) as accepted
+        FROM Livraison
+        WHERE DATE(date_heure_depart) >= $1 AND DATE(date_heure_depart) <= $2
+    `, [dateRange.start, dateRange.end]);
+
+    const data = result.rows[0] || {};
+    const total = parseInt(data.total_requests) || 0;
+    const accepted = parseInt(data.accepted) || 0;
+    const rate = total > 0 ? Math.round((accepted / total) * 100) : 0;
+
+    return {
+        value: rate,
+        total: total,
+        accepted: accepted,
+        benchmark: getBenchmark(rate, [
+            { threshold: 50, level: 'critical', label: 'Critique (< 50%)' },
+            { threshold: 70, level: 'warning', label: 'À améliorer (50-70%)' },
+            { threshold: 85, level: 'good', label: 'Bon (70-85%)' },
+            { threshold: 90, level: 'excellent', label: 'Excellent (> 85%)' }
+        ])
+    };
+}
+
+// 🟩 6. Delivery Cancellation Rate
+async function getDeliveryCancellationRate(dateRange) {
+    const result = await db.query(`
+        SELECT
+            COUNT(*) as total,
+            COUNT(*) FILTER (WHERE etat_livraison = 'annulee') as cancelled
+        FROM Livraison
+        WHERE DATE(date_heure_depart) >= $1 AND DATE(date_heure_depart) <= $2
+    `, [dateRange.start, dateRange.end]);
+
+    const data = result.rows[0] || {};
+    const total = parseInt(data.total) || 0;
+    const cancelled = parseInt(data.cancelled) || 0;
+    const rate = total > 0 ? Math.round((cancelled / total) * 100) : 0;
+
+    return {
+        value: rate,
+        cancelled: cancelled,
+        benchmark: getBenchmark(rate, [
+            { threshold: 5, level: 'excellent', label: 'Excellent (< 5%)' },
+            { threshold: 10, level: 'good', label: 'Bon (5-10%)' },
+            { threshold: 20, level: 'warning', label: 'Attention (10-20%)' },
+            { threshold: 999, level: 'critical', label: 'Critique (> 20%)' }
+        ], true)
+    };
+}
+
+// 🟩 7. Delivery Person Retention
+async function getDeliveryPersonRetention() {
+    const result = await db.query(`
+        WITH first_deliveries AS (
+            SELECT id_livreur, MIN(DATE(date_heure_depart)) as first_delivery_date
+            FROM Livraison WHERE etat_livraison = 'terminee'
+            GROUP BY id_livreur
+        )
+        SELECT
+            COUNT(DISTINCT fd.id_livreur) as cohort_size,
+            COUNT(DISTINCT CASE WHEN l.date_heure_depart >= fd.first_delivery_date + INTERVAL '1 day' THEN fd.id_livreur END) as day1_retained,
+            COUNT(DISTINCT CASE WHEN l.date_heure_depart >= fd.first_delivery_date + INTERVAL '7 days' THEN fd.id_livreur END) as week1_retained,
+            COUNT(DISTINCT CASE WHEN l.date_heure_depart >= fd.first_delivery_date + INTERVAL '28 days' THEN fd.id_livreur END) as week4_retained,
+            COUNT(DISTINCT CASE WHEN l.date_heure_depart >= fd.first_delivery_date + INTERVAL '60 days' THEN fd.id_livreur END) as month2_retained
+        FROM first_deliveries fd
+        LEFT JOIN Livraison l ON l.id_livreur = fd.id_livreur AND l.etat_livraison = 'terminee'
+    `);
+
+    const data = result.rows[0] || {};
+    const cohort = parseInt(data.cohort_size) || 1;
+
+    return {
+        day1: {
+            rate: Math.round((parseInt(data.day1_retained) / cohort) * 100),
+            retained: parseInt(data.day1_retained) || 0,
+            cohort: cohort
+        },
+        week1: {
+            rate: Math.round((parseInt(data.week1_retained) / cohort) * 100),
+            retained: parseInt(data.week1_retained) || 0,
+            cohort: cohort
+        },
+        week4: {
+            rate: Math.round((parseInt(data.week4_retained) / cohort) * 100),
+            retained: parseInt(data.week4_retained) || 0,
+            cohort: cohort
+        },
+        month2: {
+            rate: Math.round((parseInt(data.month2_retained) / cohort) * 100),
+            retained: parseInt(data.month2_retained) || 0,
+            cohort: cohort
+        }
+    };
+}
+
+// 🟩 8. Delivery Client Retention
+async function getDeliveryClientRetention() {
+    const result = await db.query(`
+        SELECT
+            COUNT(DISTINCT id_client) as total_clients,
+            COUNT(DISTINCT CASE WHEN delivery_count > 1 THEN id_client END) as repeat_clients,
+            AVG(delivery_count) as avg_deliveries_per_client
+        FROM (
+            SELECT id_client, COUNT(*) as delivery_count
+            FROM Livraison
+            WHERE etat_livraison = 'terminee'
+            AND date_heure_depart >= NOW() - INTERVAL '30 days'
+            GROUP BY id_client
+        ) client_deliveries
+    `);
+
+    const data = result.rows[0] || {};
+    const total = parseInt(data.total_clients) || 0;
+    const repeat = parseInt(data.repeat_clients) || 0;
+    const rate = total > 0 ? Math.round((repeat / total) * 100) : 0;
+
+    return {
+        rate: rate,
+        totalClients: total,
+        repeatClients: repeat,
+        avgDeliveriesPerClient: parseFloat(data.avg_deliveries_per_client) || 0
+    };
+}
+
+// 🟩 9. Delivery DAU/WAU/MAU
+async function getDeliveryDAU_WAU_MAU() {
+    const result = await db.query(`
+        SELECT
+            COUNT(DISTINCT CASE WHEN DATE(date_heure_depart) = CURRENT_DATE THEN id_livreur END) as dau,
+            COUNT(DISTINCT CASE WHEN date_heure_depart >= NOW() - INTERVAL '7 days' THEN id_livreur END) as wau,
+            COUNT(DISTINCT CASE WHEN date_heure_depart >= NOW() - INTERVAL '30 days' THEN id_livreur END) as mau
+        FROM Livraison
+        WHERE etat_livraison = 'terminee'
+    `);
+
+    const data = result.rows[0] || {};
+    const dau = parseInt(data.dau) || 0;
+    const wau = parseInt(data.wau) || 1;
+    const mau = parseInt(data.mau) || 1;
+
+    return {
+        dau: dau,
+        wau: wau,
+        mau: mau,
+        stickiness: Math.round((dau / wau) * 100)
+    };
+}
+
+// 🟩 10. Delivery Supply/Demand Ratio
+async function getDeliverySupplyDemandRatio(dateRange) {
+    const result = await db.query(`
+        SELECT
+            COUNT(*) as total_deliveries,
+            (SELECT COUNT(*) FROM Livreur WHERE statut_validation = 'approuve') as supply_delivery_persons
+        FROM Livraison
+        WHERE DATE(date_heure_depart) >= $1 AND DATE(date_heure_depart) <= $2
+        AND etat_livraison != 'annulee'
+    `, [dateRange.start, dateRange.end]);
+
+    const data = result.rows[0] || {};
+    const totalDeliveries = parseInt(data.total_deliveries) || 0;
+    const supplyDeliveryPersons = parseInt(data.supply_delivery_persons) || 0;
+    const ratio = totalDeliveries > 0 ? supplyDeliveryPersons / (totalDeliveries / 7) : 0;
+
+    return {
+        ratio: Math.round(ratio * 10) / 10,
+        supply: supplyDeliveryPersons,
+        demandDeliveries: totalDeliveries,
+        benchmark: getRatioBenchmark(ratio)
+    };
+}
+
+// 🟩 11. Delivery Activation Rate
+async function getDeliveryActivationRates() {
+    const deliveryPersonResult = await db.query(`
+        SELECT
+            (SELECT COUNT(*) FROM Livreur) as total_registered,
+            (SELECT COUNT(*) FROM Livreur WHERE photo_cni IS NOT NULL AND photo_selfie IS NOT NULL) as docs_submitted,
+            (SELECT COUNT(*) FROM Livreur WHERE statut_validation = 'approuve') as approved,
+            COUNT(DISTINCT id_livreur) as completed_delivery
+        FROM Livraison
+        WHERE etat_livraison = 'terminee'
+    `);
+
+    const clientResult = await db.query(`
+        SELECT
+            (SELECT COUNT(*) FROM Client) as total_registered,
+            COUNT(DISTINCT id_client) as completed_delivery
+        FROM Livraison
+        WHERE etat_livraison = 'terminee'
+    `);
+
+    const deliveryPersonData = deliveryPersonResult.rows[0] || {};
+    const clientData = clientResult.rows[0] || {};
+
+    return {
+        deliveryPersons: {
+            registered: parseInt(deliveryPersonData.total_registered) || 0,
+            docsSubmitted: parseInt(deliveryPersonData.docs_submitted) || 0,
+            approved: parseInt(deliveryPersonData.approved) || 0,
+            completedFirstDelivery: parseInt(deliveryPersonData.completed_delivery) || 0,
+            activationRate: deliveryPersonData.total_registered > 0
+                ? Math.round((deliveryPersonData.completed_delivery / deliveryPersonData.total_registered) * 100)
+                : 0
+        },
+        clients: {
+            registered: parseInt(clientData.total_registered) || 0,
+            completedFirstDelivery: parseInt(clientData.completed_delivery) || 0,
+            activationRate: clientData.total_registered > 0
+                ? Math.round((clientData.completed_delivery / clientData.total_registered) * 100)
+                : 0
+        }
+    };
+}
+
+// ============================================
+// GLOBAL KPIs (COMBINED RIDE-SHARING + DELIVERY)
+// ============================================
+
+// 🌍 1. Global Active Workers (Drivers + Delivery Persons)
+async function getGlobalActiveWorkersPerDay(dateRange) {
+    const driversResult = await db.query(`
+        SELECT COUNT(DISTINCT id_chauffeur) as count
+        FROM Course
+        WHERE DATE(date_heure_depart) >= $1 AND DATE(date_heure_depart) <= $2
+        AND etat_course != 'annulee'
+    `, [dateRange.start, dateRange.end]);
+
+    const deliveryPersonsResult = await db.query(`
+        SELECT COUNT(DISTINCT id_livreur) as count
+        FROM Livraison
+        WHERE DATE(date_heure_depart) >= $1 AND DATE(date_heure_depart) <= $2
+        AND etat_livraison != 'annulee'
+    `, [dateRange.start, dateRange.end]);
+
+    const drivers = parseInt(driversResult.rows[0]?.count) || 0;
+    const deliveryPersons = parseInt(deliveryPersonsResult.rows[0]?.count) || 0;
+
+    return {
+        total: drivers + deliveryPersons,
+        drivers: drivers,
+        deliveryPersons: deliveryPersons
+    };
+}
+
+// 🌍 2. Global Active Users (Clients)
+async function getGlobalActiveUsersPerDay(dateRange) {
+    const ridesResult = await db.query(`
+        SELECT COUNT(DISTINCT id_client) as count
+        FROM Course
+        WHERE DATE(date_heure_depart) >= $1 AND DATE(date_heure_depart) <= $2
+        AND etat_course != 'annulee'
+    `, [dateRange.start, dateRange.end]);
+
+    const deliveriesResult = await db.query(`
+        SELECT COUNT(DISTINCT id_client) as count
+        FROM Livraison
+        WHERE DATE(date_heure_depart) >= $1 AND DATE(date_heure_depart) <= $2
+        AND etat_livraison != 'annulee'
+    `, [dateRange.start, dateRange.end]);
+
+    const ridesClients = parseInt(ridesResult.rows[0]?.count) || 0;
+    const deliveryClients = parseInt(deliveriesResult.rows[0]?.count) || 0;
+
+    return {
+        total: ridesClients + deliveryClients,
+        ridesClients: ridesClients,
+        deliveryClients: deliveryClients
+    };
+}
+
+// 🌍 3. Global Completed Jobs (Rides + Deliveries)
+async function getGlobalCompletedJobsPerDay(dateRange) {
+    const ridesResult = await db.query(`
+        SELECT COUNT(*) as count
+        FROM Course
+        WHERE DATE(date_heure_depart) >= $1 AND DATE(date_heure_depart) <= $2
+        AND etat_course = 'terminee'
+    `, [dateRange.start, dateRange.end]);
+
+    const deliveriesResult = await db.query(`
+        SELECT COUNT(*) as count
+        FROM Livraison
+        WHERE DATE(date_heure_depart) >= $1 AND DATE(date_heure_depart) <= $2
+        AND etat_livraison = 'terminee'
+    `, [dateRange.start, dateRange.end]);
+
+    const rides = parseInt(ridesResult.rows[0]?.count) || 0;
+    const deliveries = parseInt(deliveriesResult.rows[0]?.count) || 0;
+
+    return {
+        total: rides + deliveries,
+        rides: rides,
+        deliveries: deliveries
+    };
+}
+
+// 🌍 4. Global Retention
+async function getGlobalRetention() {
+    // Worker retention
+    const workerResult = await db.query(`
+        WITH first_jobs AS (
+            SELECT id_chauffeur as worker_id, MIN(DATE(date_heure_depart)) as first_job_date
+            FROM Course WHERE etat_course = 'terminee'
+            GROUP BY id_chauffeur
+            UNION ALL
+            SELECT id_livreur, MIN(DATE(date_heure_depart))
+            FROM Livraison WHERE etat_livraison = 'terminee'
+            GROUP BY id_livreur
+        )
+        SELECT
+            COUNT(*) as cohort,
+            COUNT(CASE WHEN first_job_date >= CURRENT_DATE - INTERVAL '30 days' THEN 1 END) as active_30d
+        FROM first_jobs
+    `);
+
+    const workerData = workerResult.rows[0] || {};
+    const workerCohort = parseInt(workerData.cohort) || 1;
+    const workerActive = parseInt(workerData.active_30d) || 0;
+
+    return {
+        workers: {
+            rate: Math.round((workerActive / workerCohort) * 100),
+            cohort: workerCohort,
+            active: workerActive
+        }
+    };
+}
+
+// 🌍 5. Global DAU/WAU/MAU
+async function getGlobalDAU_WAU_MAU() {
+    const result = await db.query(`
+        SELECT
+            COUNT(DISTINCT CASE WHEN DATE(c.date_heure_depart) = CURRENT_DATE THEN c.id_chauffeur END) +
+            COUNT(DISTINCT CASE WHEN DATE(l.date_heure_depart) = CURRENT_DATE THEN l.id_livreur END) as dau,
+
+            COUNT(DISTINCT CASE WHEN c.date_heure_depart >= NOW() - INTERVAL '7 days' THEN c.id_chauffeur END) +
+            COUNT(DISTINCT CASE WHEN l.date_heure_depart >= NOW() - INTERVAL '7 days' THEN l.id_livreur END) as wau,
+
+            COUNT(DISTINCT CASE WHEN c.date_heure_depart >= NOW() - INTERVAL '30 days' THEN c.id_chauffeur END) +
+            COUNT(DISTINCT CASE WHEN l.date_heure_depart >= NOW() - INTERVAL '30 days' THEN l.id_livreur END) as mau
+        FROM Course c
+        FULL OUTER JOIN Livraison l ON 1=1
+        WHERE (c.etat_course = 'terminee' OR l.etat_livraison = 'terminee')
+    `);
+
+    const data = result.rows[0] || {};
+    const dau = parseInt(data.dau) || 0;
+    const wau = parseInt(data.wau) || 1;
+    const mau = parseInt(data.mau) || 1;
+
+    return {
+        dau: dau,
+        wau: wau,
+        mau: mau,
+        stickiness: Math.round((dau / wau) * 100)
     };
 }
 
