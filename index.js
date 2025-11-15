@@ -104,6 +104,9 @@ app.get('/dashboard.html', (req, res) => {
 // 🔐 Authentication simple (en mémoire pour l'instant)
 const activeSessions = new Set();
 
+// Exporter activeSessions pour que les routes puissent y accéder
+module.exports.activeSessions = activeSessions;
+
 // 📧 Fonction pour envoyer une notification d'inscription
 async function notifyNewRegistration(type, data) {
     const adminEmail = process.env.ADMIN_EMAIL || 'admin@vamo.sn';
@@ -692,6 +695,17 @@ try {
     console.log('✅ Admin advanced routes loaded successfully');
 } catch (error) {
     console.error('❌ Error loading admin advanced routes:', error);
+    console.error('❌ Stack trace:', error.stack);
+}
+
+// 📧 Admin Email Authentication routes
+console.log('Loading admin email auth routes...');
+try {
+    const adminEmailAuthRouter = require('./routes/admin-email-auth');
+    app.use('/api/admin', adminEmailAuthRouter);
+    console.log('✅ Admin email auth routes loaded successfully');
+} catch (error) {
+    console.error('❌ Error loading admin email auth routes:', error);
     console.error('❌ Stack trace:', error.stack);
 }
 

@@ -24,14 +24,19 @@
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
         }
 
-        .btn-login {
+        .btn-primary {
             background: linear-gradient(135deg, var(--vamo-gold), var(--vamo-gold-dark));
             transition: all 0.3s ease;
         }
 
-        .btn-login:hover {
+        .btn-primary:hover:not(:disabled) {
             transform: translateY(-2px);
             box-shadow: 0 10px 25px rgba(198, 179, 131, 0.4);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
         }
 
         .input-field {
@@ -43,6 +48,15 @@
             border-color: var(--vamo-gold);
             box-shadow: 0 0 0 3px rgba(198, 179, 131, 0.1);
         }
+
+        .countdown {
+            color: var(--vamo-gold);
+            font-weight: bold;
+        }
+
+        .hidden {
+            display: none !important;
+        }
     </style>
 </head>
 <body class="min-h-screen flex items-center justify-center p-4">
@@ -51,7 +65,12 @@
         <div class="text-center mb-8">
             <h1 class="text-4xl font-bold mb-2" style="color: var(--vamo-gold);">🚗 VAMO</h1>
             <h2 class="text-2xl font-semibold text-gray-800">Dashboard Admin</h2>
-            <p class="text-gray-600 mt-2">Connectez-vous pour accéder au panneau d'administration</p>
+            <p class="text-gray-600 mt-2">Connexion sécurisée par email</p>
+        </div>
+
+        <!-- Success Message -->
+        <div id="successMessage" class="hidden bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
+            <p id="successText"></p>
         </div>
 
         <!-- Error Message -->
@@ -59,10 +78,10 @@
             <p id="errorText"></p>
         </div>
 
-        <!-- Login Form -->
-        <form id="loginForm" class="space-y-6">
+        <!-- Étape 1: Entrer l'email -->
+        <div id="emailStep" class="space-y-6">
             <div>
-                <label class="block text-gray-700 font-semibold mb-2">📧 Email</label>
+                <label class="block text-gray-700 font-semibold mb-2">📧 Email Admin</label>
                 <input
                     type="email"
                     id="email"
@@ -72,46 +91,202 @@
                 >
             </div>
 
+            <button
+                id="sendCodeBtn"
+                type="button"
+                class="btn-primary w-full text-white font-bold py-3 px-6 rounded-lg">
+                📨 ENVOYER LE CODE
+            </button>
+        </div>
+
+        <!-- Étape 2: Entrer le code -->
+        <div id="codeStep" class="hidden space-y-6">
             <div>
-                <label class="block text-gray-700 font-semibold mb-2">🔒 Mot de passe</label>
+                <label class="block text-gray-700 font-semibold mb-2">🔐 Code de vérification</label>
+                <p class="text-sm text-gray-600 mb-3">
+                    Un code à 6 chiffres a été envoyé à <span id="emailDisplay" class="font-semibold"></span>
+                </p>
                 <input
-                    type="password"
-                    id="password"
+                    type="text"
+                    id="code"
                     required
-                    class="input-field w-full px-4 py-3 rounded-lg outline-none"
-                    placeholder="••••••••"
+                    maxlength="6"
+                    pattern="[0-9]{6}"
+                    class="input-field w-full px-4 py-3 rounded-lg outline-none text-center text-2xl tracking-widest"
+                    placeholder="000000"
                 >
+                <p class="text-sm text-gray-500 mt-2">
+                    ⏱️ Code expire dans <span id="countdown" class="countdown">5:00</span>
+                </p>
             </div>
 
             <button
-                type="submit"
-                class="btn-login w-full text-white font-bold py-3 px-6 rounded-lg">
-                🔓 SE CONNECTER
+                id="verifyCodeBtn"
+                type="button"
+                class="btn-primary w-full text-white font-bold py-3 px-6 rounded-lg">
+                🔓 VÉRIFIER LE CODE
             </button>
-        </form>
+
+            <button
+                id="resendCodeBtn"
+                type="button"
+                class="w-full text-gray-600 font-semibold py-2 px-6 rounded-lg hover:text-gray-800 transition">
+                🔄 Renvoyer le code
+            </button>
+
+            <button
+                id="changeEmailBtn"
+                type="button"
+                class="w-full text-gray-500 text-sm py-2 px-6 rounded-lg hover:text-gray-700 transition">
+                ← Changer d'email
+            </button>
+        </div>
 
         <!-- Footer -->
         <div class="mt-6 text-center text-sm text-gray-600">
-            <p>🔐 Connexion sécurisée</p>
+            <p>🔐 Connexion sécurisée par code email</p>
         </div>
     </div>
 
     <script>
-        document.getElementById('loginForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
+        let currentEmail = '';
+        let countdownInterval = null;
 
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
-            const errorDiv = document.getElementById('errorMessage');
-            const errorText = document.getElementById('errorText');
+        const emailStep = document.getElementById('emailStep');
+        const codeStep = document.getElementById('codeStep');
+        const emailInput = document.getElementById('email');
+        const codeInput = document.getElementById('code');
+        const emailDisplay = document.getElementById('emailDisplay');
+        const sendCodeBtn = document.getElementById('sendCodeBtn');
+        const verifyCodeBtn = document.getElementById('verifyCodeBtn');
+        const resendCodeBtn = document.getElementById('resendCodeBtn');
+        const changeEmailBtn = document.getElementById('changeEmailBtn');
+        const errorDiv = document.getElementById('errorMessage');
+        const errorText = document.getElementById('errorText');
+        const successDiv = document.getElementById('successMessage');
+        const successText = document.getElementById('successText');
+        const countdownSpan = document.getElementById('countdown');
+
+        // Fonction pour afficher une erreur
+        function showError(message) {
+            errorText.textContent = message;
+            errorDiv.classList.remove('hidden');
+            successDiv.classList.add('hidden');
+
+            setTimeout(() => {
+                errorDiv.classList.add('hidden');
+            }, 5000);
+        }
+
+        // Fonction pour afficher un succès
+        function showSuccess(message) {
+            successText.textContent = message;
+            successDiv.classList.remove('hidden');
+            errorDiv.classList.add('hidden');
+
+            setTimeout(() => {
+                successDiv.classList.add('hidden');
+            }, 5000);
+        }
+
+        // Démarrer le compte à rebours
+        function startCountdown(seconds) {
+            let remaining = seconds;
+
+            if (countdownInterval) {
+                clearInterval(countdownInterval);
+            }
+
+            countdownInterval = setInterval(() => {
+                const minutes = Math.floor(remaining / 60);
+                const secs = remaining % 60;
+                countdownSpan.textContent = `${minutes}:${secs.toString().padStart(2, '0')}`;
+
+                remaining--;
+
+                if (remaining < 0) {
+                    clearInterval(countdownInterval);
+                    countdownSpan.textContent = 'Expiré';
+                    showError('Code expiré. Veuillez en demander un nouveau.');
+                }
+            }, 1000);
+        }
+
+        // Étape 1: Envoyer le code
+        sendCodeBtn.addEventListener('click', async () => {
+            const email = emailInput.value.trim();
+
+            if (!email) {
+                showError('Veuillez entrer votre email');
+                return;
+            }
+
+            sendCodeBtn.disabled = true;
+            sendCodeBtn.textContent = '📨 Envoi en cours...';
 
             try {
-                const response = await fetch('/api/admin/login', {
+                const response = await fetch('/api/admin/send-login-code', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ email, password })
+                    body: JSON.stringify({ email })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    currentEmail = email;
+                    emailDisplay.textContent = email;
+
+                    // Passer à l'étape 2
+                    emailStep.classList.add('hidden');
+                    codeStep.classList.remove('hidden');
+
+                    // Démarrer le compte à rebours
+                    startCountdown(data.expiresIn || 300);
+
+                    // Si en mode dev et code fourni, l'afficher dans la console
+                    if (data.code) {
+                        console.log('🔐 Code de développement:', data.code);
+                        showSuccess('Code envoyé! (Vérifiez la console en mode dev)');
+                    } else {
+                        showSuccess('Code envoyé par email! Vérifiez votre boîte de réception.');
+                    }
+
+                    // Focus sur le champ code
+                    codeInput.focus();
+                } else {
+                    showError(data.message || 'Erreur lors de l\'envoi du code');
+                }
+            } catch (error) {
+                console.error('Erreur:', error);
+                showError('Erreur de connexion au serveur');
+            } finally {
+                sendCodeBtn.disabled = false;
+                sendCodeBtn.textContent = '📨 ENVOYER LE CODE';
+            }
+        });
+
+        // Étape 2: Vérifier le code
+        verifyCodeBtn.addEventListener('click', async () => {
+            const code = codeInput.value.trim();
+
+            if (!code || code.length !== 6) {
+                showError('Veuillez entrer un code à 6 chiffres');
+                return;
+            }
+
+            verifyCodeBtn.disabled = true;
+            verifyCodeBtn.textContent = '🔓 Vérification...';
+
+            try {
+                const response = await fetch('/api/admin/verify-login-code', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email: currentEmail, code })
                 });
 
                 const data = await response.json();
@@ -119,21 +294,106 @@
                 if (response.ok && data.success) {
                     // Connexion réussie - Stocker le token
                     localStorage.setItem('vamo_admin_token', data.token);
-                    window.location.href = '/dashboard.html?token=' + data.token;
-                } else {
-                    // Erreur de connexion
-                    errorText.textContent = data.message || 'Email ou mot de passe incorrect';
-                    errorDiv.classList.remove('hidden');
 
-                    // Masquer l'erreur après 5 secondes
+                    // Arrêter le countdown
+                    if (countdownInterval) {
+                        clearInterval(countdownInterval);
+                    }
+
+                    showSuccess('Connexion réussie! Redirection...');
+
+                    // Rediriger vers le dashboard
                     setTimeout(() => {
-                        errorDiv.classList.add('hidden');
-                    }, 5000);
+                        window.location.href = '/dashboard.html?token=' + data.token;
+                    }, 1000);
+                } else {
+                    showError(data.message || 'Code incorrect');
                 }
             } catch (error) {
-                errorText.textContent = 'Erreur de connexion au serveur';
-                errorDiv.classList.remove('hidden');
+                console.error('Erreur:', error);
+                showError('Erreur de connexion au serveur');
+            } finally {
+                verifyCodeBtn.disabled = false;
+                verifyCodeBtn.textContent = '🔓 VÉRIFIER LE CODE';
             }
+        });
+
+        // Renvoyer le code
+        resendCodeBtn.addEventListener('click', async () => {
+            resendCodeBtn.disabled = true;
+            resendCodeBtn.textContent = '🔄 Envoi...';
+
+            try {
+                const response = await fetch('/api/admin/send-login-code', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email: currentEmail })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    // Redémarrer le compte à rebours
+                    startCountdown(data.expiresIn || 300);
+
+                    // Effacer le champ code
+                    codeInput.value = '';
+                    codeInput.focus();
+
+                    if (data.code) {
+                        console.log('🔐 Nouveau code:', data.code);
+                    }
+
+                    showSuccess('Nouveau code envoyé!');
+                } else {
+                    showError(data.message || 'Erreur lors du renvoi du code');
+                }
+            } catch (error) {
+                console.error('Erreur:', error);
+                showError('Erreur de connexion au serveur');
+            } finally {
+                resendCodeBtn.disabled = false;
+                resendCodeBtn.textContent = '🔄 Renvoyer le code';
+            }
+        });
+
+        // Changer d'email
+        changeEmailBtn.addEventListener('click', () => {
+            // Arrêter le countdown
+            if (countdownInterval) {
+                clearInterval(countdownInterval);
+            }
+
+            // Effacer les champs
+            codeInput.value = '';
+            currentEmail = '';
+
+            // Revenir à l'étape 1
+            codeStep.classList.add('hidden');
+            emailStep.classList.remove('hidden');
+
+            emailInput.focus();
+        });
+
+        // Permettre de presser Entrée sur le champ email
+        emailInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendCodeBtn.click();
+            }
+        });
+
+        // Permettre de presser Entrée sur le champ code
+        codeInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                verifyCodeBtn.click();
+            }
+        });
+
+        // Auto-formater le code (seulement chiffres)
+        codeInput.addEventListener('input', (e) => {
+            e.target.value = e.target.value.replace(/[^0-9]/g, '');
         });
     </script>
 </body>
