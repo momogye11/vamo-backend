@@ -9,20 +9,25 @@ const JWT_EXPIRES_IN = '24h';
 
 // Middleware d'authentification admin
 const authenticateAdmin = (req, res, next) => {
-    const authHeader = req.headers.authorization;
-    const token = authHeader && authHeader.split(' ')[1];
+    // Vérifier plusieurs sources pour le token:
+    // 1. Header x-auth-token (pour les requêtes AJAX)
+    // 2. Cookie vamo_admin_token (HTTP-only, persistent)
+    // 3. Query param token (pour navigation)
+    const token = req.headers['x-auth-token'] || req.cookies?.vamo_admin_token || req.query.token;
 
     if (!token) {
         return res.status(401).json({ error: 'Token d\'accès requis' });
     }
 
-    try {
-        const decoded = jwt.verify(token, JWT_SECRET);
-        req.admin = decoded;
-        next();
-    } catch (error) {
-        return res.status(403).json({ error: 'Token invalide' });
+    // Vérifier si le token existe dans les sessions actives
+    const activeSessions = require('../index').activeSessions;
+    if (!activeSessions || !activeSessions.has(token)) {
+        return res.status(403).json({ error: 'Token invalide ou expiré' });
     }
+
+    // Token valide
+    req.admin = { authenticated: true };
+    next();
 };
 
 // Login admin
