@@ -54,87 +54,223 @@ async function loadKPIs() {
 function displayKPIs() {
     if (!kpisData) return;
 
+    // ============================================
+    // RIDE-SHARING KPIs
+    // ============================================
+    const rs = kpisData.ridesharing || kpisData; // Backward compatibility
+
     // 1. Active Drivers
     displayKPICard('kpi-active-drivers-card', {
         title: 'Chauffeurs Actifs (Moyenne)',
-        value: kpisData.activeDrivers.average,
+        value: rs.activeDrivers.average,
         unit: 'chauffeurs/jour',
-        benchmark: kpisData.activeDrivers.benchmark,
-        subtitle: `Aujourd'hui: ${kpisData.activeDrivers.current}`
+        benchmark: rs.activeDrivers.benchmark,
+        subtitle: `Aujourd'hui: ${rs.activeDrivers.current}`
     });
-    displayTrendChart('chart-active-drivers', kpisData.activeDrivers.trend, 'Chauffeurs Actifs', '#3B82F6');
+    displayTrendChart('chart-active-drivers', rs.activeDrivers.trend, 'Chauffeurs Actifs', '#3B82F6');
 
     // 2. Active Riders
     displayKPICard('kpi-active-riders-card', {
         title: 'Clients Actifs (Moyenne)',
-        value: kpisData.activeRiders.average,
+        value: rs.activeRiders.average,
         unit: 'clients/jour',
-        subtitle: `Aujourd'hui: ${kpisData.activeRiders.current}`
+        subtitle: `Aujourd'hui: ${rs.activeRiders.current}`
     });
-    displayTrendChart('chart-active-riders', kpisData.activeRiders.trend, 'Clients Actifs', '#10B981');
+    displayTrendChart('chart-active-riders', rs.activeRiders.trend, 'Clients Actifs', '#10B981');
 
     // 3. Completed Rides
     displayKPICard('kpi-completed-rides-card', {
         title: 'Courses Complétées (Moyenne)',
-        value: kpisData.completedRides.average,
+        value: rs.completedRides.average,
         unit: 'courses/jour',
-        benchmark: kpisData.completedRides.benchmark,
-        subtitle: `Total: ${kpisData.completedRides.total} courses`
+        benchmark: rs.completedRides.benchmark,
+        subtitle: `Total: ${rs.completedRides.total} courses`
     });
-    displayTrendChart('chart-completed-rides', kpisData.completedRides.trend, 'Courses Complétées', '#C6B383');
+    displayTrendChart('chart-completed-rides', rs.completedRides.trend, 'Courses Complétées', '#C6B383');
 
     // 4. Matching Time
     displayKPICard('kpi-matching-time-card', {
         title: 'Temps d\'Attente Moyen',
-        value: kpisData.matchingTime.value,
+        value: rs.matchingTime.value,
         unit: 'minutes',
-        benchmark: kpisData.matchingTime.benchmark
+        benchmark: rs.matchingTime.benchmark
     });
 
     // 5. Acceptance Rate
     displayKPICard('kpi-acceptance-rate-card', {
         title: 'Taux d\'Acceptation',
-        value: kpisData.acceptanceRate.value,
+        value: rs.acceptanceRate.value,
         unit: '%',
-        benchmark: kpisData.acceptanceRate.benchmark,
-        subtitle: `${kpisData.acceptanceRate.accepted} / ${kpisData.acceptanceRate.total} demandes`
+        benchmark: rs.acceptanceRate.benchmark,
+        subtitle: `${rs.acceptanceRate.accepted} / ${rs.acceptanceRate.total} demandes`
     });
 
     // 6. Cancellation Rate
     displayKPICard('kpi-cancellation-rate-card', {
         title: 'Taux d\'Annulation',
-        value: kpisData.cancellationRate.value,
+        value: rs.cancellationRate.value,
         unit: '%',
-        benchmark: kpisData.cancellationRate.benchmark,
-        subtitle: `${kpisData.cancellationRate.cancelled} annulées`
+        benchmark: rs.cancellationRate.benchmark,
+        subtitle: `${rs.cancellationRate.cancelled} annulées`
     });
 
     // 7. Driver Retention
-    displayRetentionCards('kpi-driver-retention-cards', kpisData.driverRetention, 'Chauffeurs');
+    displayRetentionCards('kpi-driver-retention-cards', rs.driverRetention, 'Chauffeurs');
 
     // 8. Rider Retention
     displayKPICard('kpi-rider-retention-card', {
         title: 'Rétention Clients (30j)',
-        value: kpisData.riderRetention.rate,
+        value: rs.riderRetention.rate,
         unit: '%',
-        subtitle: `${kpisData.riderRetention.repeatRiders} / ${kpisData.riderRetention.totalRiders} clients reviennent`,
-        additionalInfo: `Moyenne: ${kpisData.riderRetention.avgRidesPerRider.toFixed(1)} courses/client`
+        subtitle: `${rs.riderRetention.repeatRiders} / ${rs.riderRetention.totalRiders} clients reviennent`,
+        additionalInfo: `Moyenne: ${rs.riderRetention.avgRidesPerRider.toFixed(1)} courses/client`
     });
 
     // 9. DAU/WAU/MAU
-    displayDAU_WAU_MAU('kpi-dau-wau-mau-cards', kpisData.dau_wau_mau);
+    displayDAU_WAU_MAU('kpi-dau-wau-mau-cards', rs.dau_wau_mau);
 
     // 10. Supply/Demand Ratio
     displayKPICard('kpi-supply-demand-card', {
         title: 'Ratio Offre/Demande',
-        value: kpisData.supplyDemandRatio.ratio,
+        value: rs.supplyDemandRatio.ratio,
         unit: '',
-        benchmark: kpisData.supplyDemandRatio.benchmark,
-        subtitle: `${kpisData.supplyDemandRatio.supply} chauffeurs pour ${kpisData.supplyDemandRatio.demandRides} courses`
+        benchmark: rs.supplyDemandRatio.benchmark,
+        subtitle: `${rs.supplyDemandRatio.supply} chauffeurs pour ${rs.supplyDemandRatio.demandRides} courses`
     });
 
     // 11. Activation Rates
-    displayActivationRates('kpi-activation-cards', kpisData.activationRates);
+    displayActivationRates('kpi-activation-cards', rs.activationRates);
+
+    // ============================================
+    // DELIVERY KPIs
+    // ============================================
+    if (kpisData.delivery) {
+        const dv = kpisData.delivery;
+
+        // 1. Active Delivery Persons
+        displayKPICard('kpi-active-delivery-persons-card', {
+            title: 'Livreurs Actifs (Moyenne)',
+            value: dv.activeDeliveryPersons.average,
+            unit: 'livreurs/jour',
+            benchmark: dv.activeDeliveryPersons.benchmark,
+            subtitle: `Aujourd'hui: ${dv.activeDeliveryPersons.current}`
+        });
+        displayTrendChart('chart-active-delivery-persons', dv.activeDeliveryPersons.trend, 'Livreurs Actifs', '#8B5CF6');
+
+        // 2. Active Delivery Clients
+        displayKPICard('kpi-active-delivery-clients-card', {
+            title: 'Clients Livraison Actifs',
+            value: dv.activeDeliveryClients.average,
+            unit: 'clients/jour',
+            subtitle: `Aujourd'hui: ${dv.activeDeliveryClients.current}`
+        });
+        displayTrendChart('chart-active-delivery-clients', dv.activeDeliveryClients.trend, 'Clients Livraison', '#EC4899');
+
+        // 3. Completed Deliveries
+        displayKPICard('kpi-completed-deliveries-card', {
+            title: 'Livraisons Complétées',
+            value: dv.completedDeliveries.average,
+            unit: 'livraisons/jour',
+            benchmark: dv.completedDeliveries.benchmark,
+            subtitle: `Total: ${dv.completedDeliveries.total} livraisons`
+        });
+        displayTrendChart('chart-completed-deliveries', dv.completedDeliveries.trend, 'Livraisons Complétées', '#F59E0B');
+
+        // 4. Delivery Matching Time
+        displayKPICard('kpi-delivery-matching-time-card', {
+            title: 'Temps d\'Attente Livraison',
+            value: dv.deliveryMatchingTime.value,
+            unit: 'minutes',
+            benchmark: dv.deliveryMatchingTime.benchmark
+        });
+
+        // 5. Delivery Acceptance Rate
+        displayKPICard('kpi-delivery-acceptance-rate-card', {
+            title: 'Taux d\'Acceptation Livraison',
+            value: dv.deliveryAcceptanceRate.value,
+            unit: '%',
+            benchmark: dv.deliveryAcceptanceRate.benchmark,
+            subtitle: `${dv.deliveryAcceptanceRate.accepted} / ${dv.deliveryAcceptanceRate.total} demandes`
+        });
+
+        // 6. Delivery Cancellation Rate
+        displayKPICard('kpi-delivery-cancellation-rate-card', {
+            title: 'Taux d\'Annulation Livraison',
+            value: dv.deliveryCancellationRate.value,
+            unit: '%',
+            benchmark: dv.deliveryCancellationRate.benchmark,
+            subtitle: `${dv.deliveryCancellationRate.cancelled} annulées`
+        });
+
+        // 7. Delivery Person Retention
+        displayRetentionCards('kpi-delivery-person-retention-cards', dv.deliveryPersonRetention, 'Livreurs');
+
+        // 8. Delivery Client Retention
+        displayKPICard('kpi-delivery-client-retention-card', {
+            title: 'Rétention Clients Livraison',
+            value: dv.deliveryClientRetention.rate,
+            unit: '%',
+            subtitle: `${dv.deliveryClientRetention.repeatClients} / ${dv.deliveryClientRetention.totalClients} clients reviennent`,
+            additionalInfo: `Moyenne: ${dv.deliveryClientRetention.avgDeliveriesPerClient.toFixed(1)} livraisons/client`
+        });
+
+        // 9. Delivery DAU/WAU/MAU
+        displayDAU_WAU_MAU('kpi-delivery-dau-wau-mau-cards', dv.deliveryDAU_WAU_MAU);
+
+        // 10. Delivery Supply/Demand Ratio
+        displayKPICard('kpi-delivery-supply-demand-card', {
+            title: 'Ratio Offre/Demande Livraison',
+            value: dv.deliverySupplyDemandRatio.ratio,
+            unit: '',
+            benchmark: dv.deliverySupplyDemandRatio.benchmark,
+            subtitle: `${dv.deliverySupplyDemandRatio.supply} livreurs pour ${dv.deliverySupplyDemandRatio.demandDeliveries} livraisons`
+        });
+
+        // 11. Delivery Activation Rates
+        displayDeliveryActivationRates('kpi-delivery-activation-cards', dv.deliveryActivationRates);
+    }
+
+    // ============================================
+    // GLOBAL KPIs
+    // ============================================
+    if (kpisData.global) {
+        const gl = kpisData.global;
+
+        // 1. Global Active Workers
+        displayKPICard('kpi-global-workers-card', {
+            title: 'Travailleurs Actifs (Total)',
+            value: gl.activeWorkers.total,
+            unit: 'personnes',
+            subtitle: `${gl.activeWorkers.drivers} chauffeurs + ${gl.activeWorkers.deliveryPersons} livreurs`
+        });
+
+        // 2. Global Active Users
+        displayKPICard('kpi-global-users-card', {
+            title: 'Utilisateurs Actifs (Total)',
+            value: gl.activeUsers.total,
+            unit: 'clients',
+            subtitle: `${gl.activeUsers.ridesClients} courses + ${gl.activeUsers.deliveryClients} livraisons`
+        });
+
+        // 3. Global Completed Jobs
+        displayKPICard('kpi-global-jobs-card', {
+            title: 'Jobs Complétés (Total)',
+            value: gl.completedJobs.total,
+            unit: 'jobs',
+            subtitle: `${gl.completedJobs.rides} courses + ${gl.completedJobs.deliveries} livraisons`
+        });
+
+        // 4. Global DAU/WAU/MAU
+        displayDAU_WAU_MAU('kpi-global-dau-wau-mau-cards', gl.dau_wau_mau);
+
+        // 5. Global Retention
+        displayKPICard('kpi-global-retention-card', {
+            title: 'Rétention Globale (30j)',
+            value: gl.retention.workers.rate,
+            unit: '%',
+            subtitle: `${gl.retention.workers.active} / ${gl.retention.workers.cohort} travailleurs actifs`
+        });
+    }
 }
 
 // Afficher une carte KPI avec benchmark
@@ -323,6 +459,68 @@ function displayActivationRates(containerId, data) {
     `;
 
     container.innerHTML = driverFunnelHTML + clientFunnelHTML;
+}
+
+// Afficher les taux d'activation pour les livraisons
+function displayDeliveryActivationRates(containerId, data) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    // Livreurs
+    const deliveryPersonFunnelHTML = `
+        <div class="stat-card">
+            <h4 class="text-sm font-bold mb-4 text-gray-700">Funnel Livreurs</h4>
+            <div class="space-y-2">
+                <div class="flex justify-between text-sm">
+                    <span>Inscrits:</span>
+                    <strong>${data.deliveryPersons.registered}</strong>
+                </div>
+                <div class="flex justify-between text-sm">
+                    <span>Documents soumis:</span>
+                    <strong>${data.deliveryPersons.docsSubmitted}</strong>
+                </div>
+                <div class="flex justify-between text-sm">
+                    <span>Approuvés:</span>
+                    <strong>${data.deliveryPersons.approved}</strong>
+                </div>
+                <div class="flex justify-between text-sm">
+                    <span>Première livraison:</span>
+                    <strong>${data.deliveryPersons.completedFirstDelivery}</strong>
+                </div>
+            </div>
+            <div class="mt-4 p-3 rounded-lg bg-purple-50">
+                <p class="text-2xl font-bold" style="color: var(--vamo-gold);">
+                    ${data.deliveryPersons.activationRate}%
+                </p>
+                <p class="text-xs text-gray-600 mt-1">Taux d'activation</p>
+            </div>
+        </div>
+    `;
+
+    // Clients Livraison
+    const clientFunnelHTML = `
+        <div class="stat-card">
+            <h4 class="text-sm font-bold mb-4 text-gray-700">Funnel Clients Livraison</h4>
+            <div class="space-y-2">
+                <div class="flex justify-between text-sm">
+                    <span>Inscrits:</span>
+                    <strong>${data.clients.registered}</strong>
+                </div>
+                <div class="flex justify-between text-sm">
+                    <span>Première livraison:</span>
+                    <strong>${data.clients.completedFirstDelivery}</strong>
+                </div>
+            </div>
+            <div class="mt-4 p-3 rounded-lg bg-pink-50">
+                <p class="text-2xl font-bold" style="color: var(--vamo-gold);">
+                    ${data.clients.activationRate}%
+                </p>
+                <p class="text-xs text-gray-600 mt-1">Taux d'activation</p>
+            </div>
+        </div>
+    `;
+
+    container.innerHTML = deliveryPersonFunnelHTML + clientFunnelHTML;
 }
 
 // Gérer l'affichage des dates custom
