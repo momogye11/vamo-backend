@@ -973,6 +973,15 @@
 
             <!-- KPIs content -->
             <div id="kpis-content" style="display: none;">
+                <!-- ============================================ -->
+                <!-- RIDE-SHARING KPIs SECTION -->
+                <!-- ============================================ -->
+                <div class="mb-8">
+                    <h2 class="text-2xl font-bold mb-6 text-blue-600">
+                        🚗 KPIs RIDE-SHARING (Courses)
+                    </h2>
+                </div>
+
                 <!-- 1. Active Drivers - #1 KPI -->
                 <div class="mb-8">
                     <h3 class="text-lg font-bold mb-4" style="color: var(--vamo-gold);">
@@ -1075,6 +1084,168 @@
                     </h3>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="kpi-activation-cards"></div>
                 </div>
+
+                <!-- ============================================ -->
+                <!-- DELIVERY KPIs SECTION -->
+                <!-- ============================================ -->
+                <div class="mt-12 pt-8 border-t-4 border-purple-500">
+                    <h2 class="text-2xl font-bold mb-6 text-purple-600">
+                        📦 KPIs LIVRAISON (Delivery)
+                    </h2>
+
+                    <!-- 1. Active Delivery Persons -->
+                    <div class="mb-8">
+                        <h3 class="text-lg font-bold mb-4" style="color: var(--vamo-gold);">
+                            🟩 1. Livreurs Actifs / Jour
+                        </h3>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div class="stat-card" id="kpi-active-delivery-persons-card"></div>
+                            <div class="stat-card col-span-2">
+                                <canvas id="chart-active-delivery-persons"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 2. Active Delivery Clients -->
+                    <div class="mb-8">
+                        <h3 class="text-lg font-bold mb-4" style="color: var(--vamo-gold);">
+                            🟩 2. Clients Livraison Actifs / Jour
+                        </h3>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div class="stat-card" id="kpi-active-delivery-clients-card"></div>
+                            <div class="stat-card col-span-2">
+                                <canvas id="chart-active-delivery-clients"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 3. Completed Deliveries -->
+                    <div class="mb-8">
+                        <h3 class="text-lg font-bold mb-4" style="color: var(--vamo-gold);">
+                            🟩 3. Livraisons Complétées / Jour
+                        </h3>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div class="stat-card" id="kpi-completed-deliveries-card"></div>
+                            <div class="stat-card col-span-2">
+                                <canvas id="chart-completed-deliveries"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 4. Delivery Matching Time -->
+                    <div class="mb-8">
+                        <h3 class="text-lg font-bold mb-4" style="color: var(--vamo-gold);">
+                            🟩 4. Temps d'Attente Livraison
+                        </h3>
+                        <div class="stat-card" id="kpi-delivery-matching-time-card"></div>
+                    </div>
+
+                    <!-- 5. Delivery Acceptance Rate -->
+                    <div class="mb-8">
+                        <h3 class="text-lg font-bold mb-4" style="color: var(--vamo-gold);">
+                            🟩 5. Taux d'Acceptation Livraison
+                        </h3>
+                        <div class="stat-card" id="kpi-delivery-acceptance-rate-card"></div>
+                    </div>
+
+                    <!-- 6. Delivery Cancellation Rate -->
+                    <div class="mb-8">
+                        <h3 class="text-lg font-bold mb-4" style="color: var(--vamo-gold);">
+                            🟩 6. Taux d'Annulation Livraison
+                        </h3>
+                        <div class="stat-card" id="kpi-delivery-cancellation-rate-card"></div>
+                    </div>
+
+                    <!-- 7. Delivery Person Retention -->
+                    <div class="mb-8">
+                        <h3 class="text-lg font-bold mb-4" style="color: var(--vamo-gold);">
+                            🟩 7. Rétention Livreurs
+                        </h3>
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4" id="kpi-delivery-person-retention-cards"></div>
+                    </div>
+
+                    <!-- 8. Delivery Client Retention -->
+                    <div class="mb-8">
+                        <h3 class="text-lg font-bold mb-4" style="color: var(--vamo-gold);">
+                            🟩 8. Rétention Clients Livraison (30 jours)
+                        </h3>
+                        <div class="stat-card" id="kpi-delivery-client-retention-card"></div>
+                    </div>
+
+                    <!-- 9. Delivery DAU/WAU/MAU -->
+                    <div class="mb-8">
+                        <h3 class="text-lg font-bold mb-4" style="color: var(--vamo-gold);">
+                            🟩 9. DAU/WAU/MAU Livraison
+                        </h3>
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4" id="kpi-delivery-dau-wau-mau-cards"></div>
+                    </div>
+
+                    <!-- 10. Delivery Supply/Demand Ratio -->
+                    <div class="mb-8">
+                        <h3 class="text-lg font-bold mb-4" style="color: var(--vamo-gold);">
+                            🟩 10. Ratio Offre/Demande Livraison
+                        </h3>
+                        <div class="stat-card" id="kpi-delivery-supply-demand-card"></div>
+                    </div>
+
+                    <!-- 11. Delivery Activation Rates -->
+                    <div class="mb-8">
+                        <h3 class="text-lg font-bold mb-4" style="color: var(--vamo-gold);">
+                            🟩 11. Taux d'Activation Livraison (Onboarding)
+                        </h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="kpi-delivery-activation-cards"></div>
+                    </div>
+                </div>
+
+                <!-- ============================================ -->
+                <!-- GLOBAL KPIs SECTION -->
+                <!-- ============================================ -->
+                <div class="mt-12 pt-8 border-t-4 border-green-500">
+                    <h2 class="text-2xl font-bold mb-6 text-green-600">
+                        🌍 KPIs GLOBAUX (Ride-sharing + Livraison)
+                    </h2>
+
+                    <!-- 1. Global Active Workers -->
+                    <div class="mb-8">
+                        <h3 class="text-lg font-bold mb-4" style="color: var(--vamo-gold);">
+                            🌍 1. Travailleurs Actifs (Total)
+                        </h3>
+                        <div class="stat-card" id="kpi-global-workers-card"></div>
+                    </div>
+
+                    <!-- 2. Global Active Users -->
+                    <div class="mb-8">
+                        <h3 class="text-lg font-bold mb-4" style="color: var(--vamo-gold);">
+                            🌍 2. Utilisateurs Actifs (Total)
+                        </h3>
+                        <div class="stat-card" id="kpi-global-users-card"></div>
+                    </div>
+
+                    <!-- 3. Global Completed Jobs -->
+                    <div class="mb-8">
+                        <h3 class="text-lg font-bold mb-4" style="color: var(--vamo-gold);">
+                            🌍 3. Jobs Complétés (Total)
+                        </h3>
+                        <div class="stat-card" id="kpi-global-jobs-card"></div>
+                    </div>
+
+                    <!-- 4. Global DAU/WAU/MAU -->
+                    <div class="mb-8">
+                        <h3 class="text-lg font-bold mb-4" style="color: var(--vamo-gold);">
+                            🌍 4. DAU/WAU/MAU Global
+                        </h3>
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4" id="kpi-global-dau-wau-mau-cards"></div>
+                    </div>
+
+                    <!-- 5. Global Retention -->
+                    <div class="mb-8">
+                        <h3 class="text-lg font-bold mb-4" style="color: var(--vamo-gold);">
+                            🌍 5. Rétention Globale (30 jours)
+                        </h3>
+                        <div class="stat-card" id="kpi-global-retention-card"></div>
+                    </div>
+                </div>
+
             </div>
         </div>
 
