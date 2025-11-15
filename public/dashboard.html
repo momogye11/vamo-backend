@@ -4,6 +4,30 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Vamo Admin - Dashboard Complet</title>
+
+    <!-- 🔐 Vérification d'authentification -->
+    <script>
+        // Vérifier l'authentification AVANT de charger quoi que ce soit
+        (function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const tokenFromUrl = urlParams.get('token');
+            const tokenFromStorage = localStorage.getItem('vamo_admin_token');
+
+            const token = tokenFromUrl || tokenFromStorage;
+
+            if (!token) {
+                // Pas de token, rediriger vers login
+                window.location.replace('/login.html');
+                return;
+            }
+
+            // Si token dans URL, le sauvegarder dans localStorage
+            if (tokenFromUrl) {
+                localStorage.setItem('vamo_admin_token', tokenFromUrl);
+            }
+        })();
+    </script>
+
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>

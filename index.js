@@ -104,6 +104,46 @@ app.get('/dashboard.html', (req, res) => {
 // 🔐 Authentication simple (en mémoire pour l'instant)
 const activeSessions = new Set();
 
+// 📧 Fonction pour envoyer une notification d'inscription
+async function notifyNewRegistration(type, data) {
+    const adminEmail = process.env.ADMIN_EMAIL || 'admin@vamo.sn';
+
+    console.log('🔔 NOUVELLE INSCRIPTION:', {
+        type: type, // 'chauffeur' ou 'livreur'
+        nom: data.nom,
+        prenom: data.prenom,
+        telephone: data.telephone,
+        timestamp: new Date().toISOString()
+    });
+
+    // TODO: Configurer l'envoi d'email réel
+    // Pour l'instant, on log juste dans Railway
+    // Vous pouvez ajouter nodemailer ou utiliser une API d'email
+
+    /* EXEMPLE avec nodemailer (à configurer plus tard):
+    const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+            user: process.env.EMAIL_USER,
+            pass: process.env.EMAIL_PASSWORD
+        }
+    });
+
+    await transporter.sendMail({
+        from: 'notifications@vamo.sn',
+        to: adminEmail,
+        subject: `🚗 Nouvelle inscription ${type}`,
+        html: `
+            <h2>Nouvelle demande d'inscription</h2>
+            <p><strong>Type:</strong> ${type}</p>
+            <p><strong>Nom:</strong> ${data.nom} ${data.prenom}</p>
+            <p><strong>Téléphone:</strong> ${data.telephone}</p>
+            <p><a href="${process.env.DASHBOARD_URL}">Voir dans le dashboard</a></p>
+        `
+    });
+    */
+}
+
 // Endpoint de connexion admin
 app.post('/api/admin/login', (req, res) => {
     const { email, password } = req.body;

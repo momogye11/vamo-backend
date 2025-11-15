@@ -209,6 +209,17 @@ router.post('/register', upload.fields([
 
         console.log("✅ Livreur créé avec succès:", result.rows[0]);
 
+        // 🔔 Notification admin: Nouvelle inscription livreur
+        console.log('🔔 NOTIFICATION ADMIN - NOUVELLE INSCRIPTION LIVREUR:', {
+            id: result.rows[0].id_livreur,
+            nom: nom,
+            prenom: prenom,
+            telephone: telephone,
+            type_vehicule: type_vehicule,
+            timestamp: new Date().toISOString(),
+            action_requise: 'Validation dans le dashboard admin'
+        });
+
         res.json({
             success: true,
             message: 'Inscription livreur réussie',

@@ -169,6 +169,17 @@ router.post('/register', upload.fields([
 
         console.log("✅ Chauffeur créé avec succès:", result.rows[0]);
 
+        // 🔔 Notification admin: Nouvelle inscription chauffeur
+        console.log('🔔 NOTIFICATION ADMIN - NOUVELLE INSCRIPTION CHAUFFEUR:', {
+            id: result.rows[0].id_chauffeur,
+            nom: nom,
+            prenom: prenom,
+            telephone: telephone,
+            marque_vehicule: marque_vehicule,
+            timestamp: new Date().toISOString(),
+            action_requise: 'Validation dans le dashboard admin'
+        });
+
         res.json({
             success: true,
             message: 'Inscription chauffeur réussie',
