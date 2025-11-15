@@ -879,9 +879,17 @@ try {
 const PORT = process.env.PORT || 5002;
 const server = app.listen(PORT, '0.0.0.0', async () => {
     console.log(`✅ Serveur en ligne sur http://0.0.0.0:${PORT}`);
-    
+
     // Initialize database after server starts
     await initializeDatabase();
+
+    // Start auto-cleanup service (runs every hour)
+    try {
+        const autoCleanupService = require('./services/autoCleanupService');
+        autoCleanupService.start(60); // Nettoyage toutes les 60 minutes
+    } catch (error) {
+        console.error('⚠️ Could not start auto-cleanup service:', error.message);
+    }
 
     // Add a heartbeat to confirm server stays alive
     setTimeout(() => {

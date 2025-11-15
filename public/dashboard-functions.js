@@ -125,32 +125,41 @@ async function loadDashboard() {
 
 async function loadDashboardStats() {
     try {
-        // Clients
-        const clientsRes = await fetch(`${API_BASE}/client`);
-        const clientsData = await clientsRes.json();
-        document.getElementById('stat-clients').textContent = clientsData.length || 0;
+        // Utiliser le nouvel endpoint admin avec stats intelligentes
+        const token = localStorage.getItem('vamo_admin_token');
+        const statsRes = await fetch(`${API_BASE}/admin/dashboard/stats`, {
+            headers: {
+                'x-auth-token': token
+            }
+        });
 
-        // Chauffeurs
-        const chauffeursRes = await fetch(`${API_BASE}/debug/chauffeurs`);
-        const chauffeursData = await chauffeursRes.json();
-        const totalChauffeurs = chauffeursData.chauffeurs?.length || 0;
-        const chauffeursOnline = chauffeursData.chauffeurs?.filter(c => c.disponibilite).length || 0;
-        document.getElementById('stat-chauffeurs').textContent = totalChauffeurs;
-        document.getElementById('chauffeurs-online').textContent = chauffeursOnline;
+        if (!statsRes.ok) {
+            throw new Error('Erreur chargement stats');
+        }
 
-        // Courses actives
-        const coursesRes = await fetch(`${API_BASE}/trips`);
-        const coursesData = await coursesRes.json();
-        const coursesActives = coursesData.filter(c => c.etat_course === 'en_cours').length || 0;
-        document.getElementById('stat-courses-actives').textContent = coursesActives;
+        const { stats } = await statsRes.json();
 
-        // Revenus du jour
-        const today = new Date().toISOString().split('T')[0];
-        const revenusJour = await calculateRevenusJour(today);
-        document.getElementById('stat-revenus-jour').textContent = formatCFA(revenusJour);
+        // Mettre à jour tous les éléments du dashboard
+        document.getElementById('stat-clients').textContent = stats.totalUsers || 0;
+        document.getElementById('stat-chauffeurs').textContent = stats.totalDrivers || 0;
+        document.getElementById('chauffeurs-online').textContent = stats.driversOnline || 0;
+        document.getElementById('stat-courses-actives').textContent = stats.activeTrips || 0;
+        document.getElementById('stat-revenus-jour').textContent = formatCFA(stats.todayRevenue || 0);
+
+        // Stats additionnelles si besoin
+        if (document.getElementById('stat-livreurs')) {
+            document.getElementById('stat-livreurs').textContent = stats.totalDeliveryPersons || 0;
+        }
+        if (document.getElementById('livreurs-online')) {
+            document.getElementById('livreurs-online').textContent = stats.deliveryPersonsOnline || 0;
+        }
+        if (document.getElementById('stat-livraisons-actives')) {
+            document.getElementById('stat-livraisons-actives').textContent = stats.activeDeliveries || 0;
+        }
 
     } catch (error) {
         // console.error('❌ Error loading dashboard stats:', error);
+        showNotification('Erreur de chargement des statistiques', 'error');
     }
 }
 

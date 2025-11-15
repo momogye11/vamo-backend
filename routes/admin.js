@@ -77,45 +77,106 @@ router.post('/login', async (req, res) => {
     }
 });
 
-// Dashboard stats
+// Dashboard stats - Version améliorée avec stats intelligentes
 router.get('/dashboard/stats', authenticateAdmin, async (req, res) => {
     try {
-        // Requêtes pour obtenir les statistiques
+        // Requêtes pour obtenir les statistiques INTELLIGENTES
         const [
             clientsResult,
             chauffeursResult,
+            chauffeursOnlineResult,
             livreursResult,
-            coursesActiveResult,
-            livraisonsActiveResult,
-            coursesTodayResult,
-            livraisonsTodayResult,
+            livreursOnlineResult,
+            coursesActivesTodayResult,
+            livraisonsActivesTodayResult,
+            coursesCompletedTodayResult,
+            livraisonsCompletedTodayResult,
             revenueResult
         ] = await Promise.all([
+            // Total clients
             db.query('SELECT COUNT(*) as count FROM Client'),
-            db.query('SELECT COUNT(*) as count FROM Chauffeur'),
-            db.query('SELECT COUNT(*) as count FROM Livreur'),
-            db.query("SELECT COUNT(*) as count FROM Course WHERE etat_course = 'en_cours'"),
-            db.query("SELECT COUNT(*) as count FROM Livraison WHERE etat_livraison = 'en_cours'"),
-            db.query("SELECT COUNT(*) as count FROM Course WHERE DATE(date_heure_depart) = CURRENT_DATE"),
-            db.query("SELECT COUNT(*) as count FROM Livraison WHERE DATE(date_heure_depart) = CURRENT_DATE"),
+
+            // Total chauffeurs approuvés
+            db.query("SELECT COUNT(*) as count FROM Chauffeur WHERE statut_validation = 'approuve'"),
+
+            // Chauffeurs VRAIMENT en ligne (disponibles ET avec position GPS récente < 10 min)
             db.query(`
-                SELECT 
+                SELECT COUNT(*) as count
+                FROM Chauffeur c
+                LEFT JOIN PositionChauffeur p ON p.id_chauffeur = c.id_chauffeur
+                WHERE c.disponibilite = true
+                AND c.statut_validation = 'approuve'
+                AND p.derniere_maj IS NOT NULL
+                AND p.derniere_maj > NOW() - INTERVAL '10 minutes'
+            `),
+
+            // Total livreurs approuvés
+            db.query("SELECT COUNT(*) as count FROM Livreur WHERE statut_validation = 'approuve'"),
+
+            // Livreurs VRAIMENT en ligne (disponibles ET avec position GPS récente < 10 min)
+            db.query(`
+                SELECT COUNT(*) as count
+                FROM Livreur l
+                LEFT JOIN PositionLivreur p ON p.id_livreur = l.id_livreur
+                WHERE l.disponibilite = true
+                AND l.statut_validation = 'approuve'
+                AND p.derniere_maj IS NOT NULL
+                AND p.derniere_maj > NOW() - INTERVAL '10 minutes'
+            `),
+
+            // Courses actives AUJOURD'HUI uniquement
+            db.query(`
+                SELECT COUNT(*) as count
+                FROM Course
+                WHERE etat_course IN ('en_cours', 'acceptee', 'arrivee_pickup')
+                AND DATE(date_heure_depart) = CURRENT_DATE
+            `),
+
+            // Livraisons actives AUJOURD'HUI uniquement
+            db.query(`
+                SELECT COUNT(*) as count
+                FROM Livraison
+                WHERE etat_livraison IN ('en_cours', 'acceptee', 'arrivee_pickup')
+                AND DATE(date_heure_depart) = CURRENT_DATE
+            `),
+
+            // Courses terminées aujourd'hui
+            db.query(`
+                SELECT COUNT(*) as count
+                FROM Course
+                WHERE etat_course = 'terminee'
+                AND DATE(date_heure_depart) = CURRENT_DATE
+            `),
+
+            // Livraisons terminées aujourd'hui
+            db.query(`
+                SELECT COUNT(*) as count
+                FROM Livraison
+                WHERE etat_livraison = 'terminee'
+                AND DATE(date_heure_depart) = CURRENT_DATE
+            `),
+
+            // Revenus
+            db.query(`
+                SELECT
                     COALESCE(SUM(CASE WHEN DATE(date_heure_depart) = CURRENT_DATE THEN prix END), 0) as today_revenue,
-                    COALESCE(SUM(CASE WHEN DATE_PART('month', date_heure_depart) = DATE_PART('month', CURRENT_DATE) 
-                                     AND DATE_PART('year', date_heure_depart) = DATE_PART('year', CURRENT_DATE) 
+                    COALESCE(SUM(CASE WHEN DATE_PART('month', date_heure_depart) = DATE_PART('month', CURRENT_DATE)
+                                     AND DATE_PART('year', date_heure_depart) = DATE_PART('year', CURRENT_DATE)
                                      THEN prix END), 0) as monthly_revenue
-                FROM Course WHERE etat_course = 'termine'
+                FROM Course WHERE etat_course = 'terminee'
             `)
         ]);
 
         const stats = {
             totalUsers: parseInt(clientsResult.rows[0].count),
             totalDrivers: parseInt(chauffeursResult.rows[0].count),
+            driversOnline: parseInt(chauffeursOnlineResult.rows[0].count),
             totalDeliveryPersons: parseInt(livreursResult.rows[0].count),
-            activeTrips: parseInt(coursesActiveResult.rows[0].count),
-            activeDeliveries: parseInt(livraisonsActiveResult.rows[0].count),
-            completedTripsToday: parseInt(coursesTodayResult.rows[0].count),
-            completedDeliveriesToday: parseInt(livraisonsTodayResult.rows[0].count),
+            deliveryPersonsOnline: parseInt(livreursOnlineResult.rows[0].count),
+            activeTrips: parseInt(coursesActivesTodayResult.rows[0].count),
+            activeDeliveries: parseInt(livraisonsActivesTodayResult.rows[0].count),
+            completedTripsToday: parseInt(coursesCompletedTodayResult.rows[0].count),
+            completedDeliveriesToday: parseInt(livraisonsCompletedTodayResult.rows[0].count),
             todayRevenue: parseFloat(revenueResult.rows[0].today_revenue || 0),
             monthlyRevenue: parseFloat(revenueResult.rows[0].monthly_revenue || 0),
             averageRating: 4.5 // À calculer plus tard avec les vraies notes
@@ -124,7 +185,7 @@ router.get('/dashboard/stats', authenticateAdmin, async (req, res) => {
         res.json({ success: true, stats });
 
     } catch (error) {
-        console.error('Erreur dashboard stats:', error);
+        console.error('❌ Erreur dashboard stats:', error.message);
         res.status(500).json({ error: 'Erreur serveur' });
     }
 });
@@ -574,6 +635,21 @@ router.get('/deliveries/active', authenticateAdmin, async (req, res) => {
     } catch (error) {
         console.error('Erreur livraisons actives:', error);
         res.status(500).json({ error: 'Erreur serveur' });
+    }
+});
+
+// Déclencher un nettoyage manuel
+router.post('/cleanup', authenticateAdmin, async (req, res) => {
+    try {
+        const autoCleanupService = require('../services/autoCleanupService');
+        const result = await autoCleanupService.manualCleanup();
+        res.json(result);
+    } catch (error) {
+        console.error('❌ Erreur cleanup manuel:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Erreur lors du nettoyage'
+        });
     }
 });
 
