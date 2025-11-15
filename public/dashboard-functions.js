@@ -465,17 +465,21 @@ async function showClientDetails(clientId) {
 
     try {
         // ✅ VRAIES DONNÉES - Charger toutes les infos du client
+        const token = localStorage.getItem('vamo_admin_token');
         const [clientRes, coursesRes, livraisonsRes] = await Promise.all([
-            fetch(`${API_BASE}/client`),
+            fetch(`${API_BASE}/api/admin/clients?limit=1000`, {
+                headers: { 'x-auth-token': token }
+            }),
             fetch(`${API_BASE}/trips`),
             fetch(`${API_BASE}/livraison`)
         ]);
 
-        const clients = await clientRes.json();
+        const clientData = await clientRes.json();
+        const clients = clientData.clients || [];
         const allCourses = await coursesRes.json();
         const allLivraisons = await livraisonsRes.json() || [];
 
-        const client = clients.find(c => c.id_client === clientId);
+        const client = clients.find(c => parseInt(c.id) === parseInt(clientId));
 
         if (!client) {
             document.getElementById('modalContent').innerHTML = '<p class="text-red-500">Client non trouvé</p>';
