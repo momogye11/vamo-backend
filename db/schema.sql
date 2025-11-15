@@ -6,7 +6,8 @@ CREATE TABLE Client (
     nom VARCHAR(100) NOT NULL,
     prenom VARCHAR(100) NOT NULL,
     telephone VARCHAR(20) NOT NULL UNIQUE,
-    device_token TEXT
+    device_token TEXT,
+    date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE HistoriqueAdresseClient (
     id_adresse SERIAL PRIMARY KEY,

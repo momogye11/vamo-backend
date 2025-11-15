@@ -162,8 +162,12 @@ router.get('/clients', authenticateAdmin, async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Erreur liste clients:', error);
-        res.status(500).json({ error: 'Erreur serveur' });
+        console.error('❌ Erreur liste clients:', error.message);
+        console.error('❌ Stack:', error.stack);
+        res.status(500).json({
+            error: 'Erreur serveur',
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
     }
 });
 
