@@ -200,8 +200,11 @@ async function getMatchingTime(dateRange) {
 
     const avgMinutes = parseFloat(result.rows[0]?.avg_matching_time_minutes) || 0;
 
+    // Note: Avec données de test, le temps peut être < 1 min
+    const displayValue = avgMinutes < 0.1 ? '< 0.1' : Math.round(avgMinutes * 10) / 10;
+
     return {
-        value: Math.round(avgMinutes * 10) / 10,
+        value: displayValue,
         unit: 'minutes',
         benchmark: getBenchmark(avgMinutes, [
             { threshold: 2, level: 'excellent', label: 'Killer app' },
