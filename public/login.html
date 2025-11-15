@@ -246,20 +246,7 @@
                     // Démarrer le compte à rebours
                     startCountdown(data.expiresIn || 300);
 
-                    // Si code fourni dans la réponse (email failed), l'afficher
-                    if (data.code) {
-                        console.log('🔐 CODE:', data.code);
-                        console.log('💡 Hint:', data.hint || 'Code affiché ci-dessus');
-
-                        // Afficher le code dans la page si email a échoué
-                        if (data.emailError) {
-                            showSuccess(`Code généré: ${data.code} (L'email n'a pas pu être envoyé. Utilisez ce code.)`);
-                        } else {
-                            showSuccess('Code envoyé! (Vérifiez la console pour le code)');
-                        }
-                    } else {
-                        showSuccess('Code envoyé par email! Vérifiez votre boîte de réception.');
-                    }
+                    showSuccess('Code envoyé par email! Vérifiez votre boîte de réception.');
 
                     // Focus sur le champ code
                     codeInput.focus();
@@ -349,18 +336,7 @@
                     codeInput.value = '';
                     codeInput.focus();
 
-                    if (data.code) {
-                        console.log('🔐 Nouveau code:', data.code);
-
-                        // Afficher le code si email a échoué
-                        if (data.emailError) {
-                            showSuccess(`Nouveau code: ${data.code} (L'email n'a pas pu être envoyé)`);
-                        } else {
-                            showSuccess('Nouveau code envoyé!');
-                        }
-                    } else {
-                        showSuccess('Nouveau code envoyé!');
-                    }
+                    showSuccess('Nouveau code envoyé!');
                 } else {
                     showError(data.message || 'Erreur lors du renvoi du code');
                 }

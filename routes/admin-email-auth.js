@@ -68,8 +68,6 @@ router.post('/send-login-code', async (req, res) => {
         // Stocker le code
         loginCodes.set(email, { code, expires });
 
-        console.log(`🔐 Code de connexion généré pour ${email}: ${code}`);
-
         // Initialiser Resend si pas déjà fait
         if (!resend) {
             resend = initializeEmailService();
@@ -119,44 +117,25 @@ router.post('/send-login-code', async (req, res) => {
                     throw error;
                 }
 
-                console.log(`✅ Email envoyé avec succès via Resend à ${email}`);
-                console.log(`📧 Email ID: ${data?.id}`);
-
                 res.json({
                     success: true,
                     message: 'Code de connexion envoyé par email',
                     expiresIn: 300 // 5 minutes en secondes
                 });
             } catch (emailError) {
-                console.error('❌ Erreur envoi email:', emailError);
-                console.log(`⚠️ FALLBACK: Code disponible dans les logs Railway`);
-                console.log(`🔐 CODE DE CONNEXION: ${code}`);
-                console.log(`📧 Email destinataire: ${email}`);
+                // Log uniquement l'erreur sans détails sensibles
+                console.error('❌ Erreur envoi email');
 
-                // IMPORTANT: Toujours retourner success même si email échoue
-                // Le code est logué et disponible dans les logs Railway
-                res.json({
-                    success: true,
-                    message: 'Code généré. Si vous ne recevez pas l\'email, vérifiez les logs Railway.',
-                    code: code, // Visible dans les logs Railway/console
-                    expiresIn: 300,
-                    emailError: true,
-                    hint: 'Regardez la console du navigateur ou les logs Railway pour le code'
+                res.status(500).json({
+                    success: false,
+                    message: 'Erreur lors de l\'envoi de l\'email. Veuillez réessayer.'
                 });
             }
         } else {
-            // Si Resend n'est pas configuré, mode fallback
-            console.log(`⚠️ Resend non configuré - Mode fallback`);
-            console.log(`🔐 CODE DE CONNEXION: ${code}`);
-            console.log(`📧 Email destinataire: ${email}`);
-
-            res.json({
-                success: true,
-                message: 'Code généré. Configurez RESEND_API_KEY pour recevoir les emails.',
-                code: code,
-                expiresIn: 300,
-                emailError: true,
-                hint: 'Regardez la console du navigateur ou les logs Railway pour le code'
+            // Si Resend n'est pas configuré
+            res.status(500).json({
+                success: false,
+                message: 'Service d\'email non configuré. Contactez l\'administrateur.'
             });
         }
     } catch (error) {
@@ -224,8 +203,6 @@ router.post('/verify-login-code', (req, res) => {
             activeSessions.delete(token);
         }, 24 * 60 * 60 * 1000);
 
-        console.log(`✅ Connexion réussie pour ${email}`);
-
         res.json({
             success: true,
             message: 'Connexion réussie',
@@ -247,7 +224,6 @@ setInterval(() => {
     for (const [email, data] of loginCodes.entries()) {
         if (now > data.expires) {
             loginCodes.delete(email);
-            console.log(`🧹 Code expiré supprimé pour ${email}`);
         }
     }
 }, 60000); // Chaque minute
