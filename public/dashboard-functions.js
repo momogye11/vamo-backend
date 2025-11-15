@@ -467,7 +467,7 @@ async function showClientDetails(clientId) {
         // ✅ VRAIES DONNÉES - Charger toutes les infos du client
         const token = localStorage.getItem('vamo_admin_token');
         const [clientRes, coursesRes, livraisonsRes] = await Promise.all([
-            fetch(`${API_BASE}/api/admin/clients?limit=1000`, {
+            fetch(`${API_BASE}/admin/clients?limit=1000`, {
                 headers: { 'x-auth-token': token }
             }),
             fetch(`${API_BASE}/trips`),
