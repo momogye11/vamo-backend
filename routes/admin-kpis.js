@@ -667,11 +667,12 @@ async function getCompletedDeliveriesPerDay(dateRange) {
 // 🟩 4. Delivery Matching Time
 async function getDeliveryMatchingTime(dateRange) {
     const result = await db.query(`
-        SELECT AVG(EXTRACT(EPOCH FROM (date_heure_acceptation - date_heure_depart)) / 60) as avg_minutes
+        SELECT AVG(EXTRACT(EPOCH FROM (date_heure_depart - date_heure_demande)) / 60) as avg_minutes
         FROM Livraison
-        WHERE DATE(date_heure_depart) >= $1 AND DATE(date_heure_depart) <= $2
+        WHERE DATE(date_heure_demande) >= $1 AND DATE(date_heure_demande) <= $2
         AND etat_livraison != 'annulee'
-        AND date_heure_acceptation IS NOT NULL
+        AND date_heure_depart IS NOT NULL
+        AND date_heure_demande IS NOT NULL
     `, [dateRange.start, dateRange.end]);
 
     const avgMinutes = parseFloat(result.rows[0]?.avg_minutes) || 0;
