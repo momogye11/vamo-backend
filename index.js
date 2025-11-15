@@ -79,10 +79,72 @@ app.use(express.json());
 // 🎨 Servir le dashboard admin (fichiers statiques)
 app.use(express.static(path.join(__dirname, 'public')));
 
-// 🏠 Route pour la page d'accueil - Dashboard Admin
+// 🏠 Route pour la page d'accueil - Dashboard Admin (protégée)
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
+    // Vérifier si le token est présent (dans query ou localStorage sera vérifié côté client)
+    const token = req.query.token;
+    if (token && activeSessions.has(token)) {
+        res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
+    } else {
+        // Si pas de token ou token invalide, rediriger vers login
+        res.redirect('/login.html');
+    }
 });
+
+// Route dashboard explicite (aussi protégée)
+app.get('/dashboard.html', (req, res) => {
+    const token = req.query.token;
+    if (token && activeSessions.has(token)) {
+        res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
+    } else {
+        res.redirect('/login.html');
+    }
+});
+
+// 🔐 Authentication simple (en mémoire pour l'instant)
+const activeSessions = new Set();
+
+// Endpoint de connexion admin
+app.post('/api/admin/login', (req, res) => {
+    const { email, password } = req.body;
+
+    // Identifiants admin (À CHANGER dans .env pour la production!)
+    const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@vamo.sn';
+    const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'VamoAdmin2024!';
+
+    if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
+        // Générer un token simple
+        const token = Math.random().toString(36).substring(2) + Date.now().toString(36);
+        activeSessions.add(token);
+
+        // Token expire après 24h
+        setTimeout(() => {
+            activeSessions.delete(token);
+        }, 24 * 60 * 60 * 1000);
+
+        res.json({
+            success: true,
+            message: 'Connexion réussie',
+            token: token
+        });
+    } else {
+        res.status(401).json({
+            success: false,
+            message: 'Email ou mot de passe incorrect'
+        });
+    }
+});
+
+// Middleware pour protéger le dashboard
+function requireAuth(req, res, next) {
+    const token = req.headers['x-auth-token'] || req.query.token;
+
+    if (token && activeSessions.has(token)) {
+        next();
+    } else {
+        res.redirect('/login.html');
+    }
+}
 
 // Test endpoint
 app.get('/api/test', (req, res) => {

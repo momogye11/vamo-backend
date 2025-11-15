@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔐 Connexion Admin - Vamo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --vamo-gold: #C6B383;
+            --vamo-gold-dark: #A89968;
+            --vamo-dark: #1A1A1A;
+        }
+
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Inter', sans-serif;
+        }
+
+        .login-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 2px solid var(--vamo-gold);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        .btn-login {
+            background: linear-gradient(135deg, var(--vamo-gold), var(--vamo-gold-dark));
+            transition: all 0.3s ease;
+        }
+
+        .btn-login:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(198, 179, 131, 0.4);
+        }
+
+        .input-field {
+            border: 2px solid #e5e7eb;
+            transition: all 0.3s ease;
+        }
+
+        .input-field:focus {
+            border-color: var(--vamo-gold);
+            box-shadow: 0 0 0 3px rgba(198, 179, 131, 0.1);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+    <div class="login-card rounded-2xl p-8 w-full max-w-md">
+        <!-- Logo/Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-4xl font-bold mb-2" style="color: var(--vamo-gold);">🚗 VAMO</h1>
+            <h2 class="text-2xl font-semibold text-gray-800">Dashboard Admin</h2>
+            <p class="text-gray-600 mt-2">Connectez-vous pour accéder au panneau d'administration</p>
+        </div>
+
+        <!-- Error Message -->
+        <div id="errorMessage" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+            <p id="errorText"></p>
+        </div>
+
+        <!-- Login Form -->
+        <form id="loginForm" class="space-y-6">
+            <div>
+                <label class="block text-gray-700 font-semibold mb-2">📧 Email</label>
+                <input
+                    type="email"
+                    id="email"
+                    required
+                    class="input-field w-full px-4 py-3 rounded-lg outline-none"
+                    placeholder="admin@vamo.sn"
+                >
+            </div>
+
+            <div>
+                <label class="block text-gray-700 font-semibold mb-2">🔒 Mot de passe</label>
+                <input
+                    type="password"
+                    id="password"
+                    required
+                    class="input-field w-full px-4 py-3 rounded-lg outline-none"
+                    placeholder="••••••••"
+                >
+            </div>
+
+            <button
+                type="submit"
+                class="btn-login w-full text-white font-bold py-3 px-6 rounded-lg">
+                🔓 SE CONNECTER
+            </button>
+        </form>
+
+        <!-- Footer -->
+        <div class="mt-6 text-center text-sm text-gray-600">
+            <p>🔐 Connexion sécurisée</p>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const errorDiv = document.getElementById('errorMessage');
+            const errorText = document.getElementById('errorText');
+
+            try {
+                const response = await fetch('/api/admin/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    // Connexion réussie - Stocker le token
+                    localStorage.setItem('vamo_admin_token', data.token);
+                    window.location.href = '/dashboard.html?token=' + data.token;
+                } else {
+                    // Erreur de connexion
+                    errorText.textContent = data.message || 'Email ou mot de passe incorrect';
+                    errorDiv.classList.remove('hidden');
+
+                    // Masquer l'erreur après 5 secondes
+                    setTimeout(() => {
+                        errorDiv.classList.add('hidden');
+                    }, 5000);
+                }
+            } catch (error) {
+                errorText.textContent = 'Erreur de connexion au serveur';
+                errorDiv.classList.remove('hidden');
+            }
+        });
+    </script>
+</body>
+</html>
