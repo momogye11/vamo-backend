@@ -675,9 +675,9 @@ router.post('/driver-cancel', async (req, res) => {
 
         await db.query('BEGIN');
 
-        // Get current trip info (including client ID for notification)
+        // Get current trip info (including client ID and addresses for blacklist)
         const currentTrip = await db.query(`
-            SELECT etat_course, id_client, telephone_client
+            SELECT etat_course, id_client, telephone_client, adresse_depart, adresse_arrivee
             FROM Course
             WHERE id_course = $1 AND id_chauffeur = $2
         `, [tripId, driverId]);
@@ -719,6 +719,8 @@ router.post('/driver-cancel', async (req, res) => {
         try {
             const blacklistDuration = 10; // minutes
             const blacklistUntil = new Date(Date.now() + blacklistDuration * 60 * 1000);
+
+            console.log(`📋 Blacklist data: driver=${driverId}, trip=${tripId}, client=${trip.id_client}, from="${trip.adresse_depart}", to="${trip.adresse_arrivee}"`);
 
             await db.query(`
                 INSERT INTO ChauffeurBlacklistTemporaire (
