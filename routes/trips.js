@@ -611,12 +611,12 @@ router.post('/cancel', async (req, res) => {
 
         console.log(`✅ Trip ${tripId} cancelled successfully by client`);
 
-        // Notify driver if there's one assigned
+        // Notify driver if there's one assigned and set driver available again
         try {
             console.log(`🔍 Checking for driver assignment for course ${actualCourseId}`);
             const driverQuery = await db.query(`
-                SELECT id_chauffeur 
-                FROM Course 
+                SELECT id_chauffeur
+                FROM Course
                 WHERE id_course = $1
             `, [actualCourseId]);
 
@@ -629,14 +629,23 @@ router.post('/cancel', async (req, res) => {
             if (driverQuery.rowCount > 0 && driverQuery.rows[0].id_chauffeur) {
                 const driverId = driverQuery.rows[0].id_chauffeur;
                 console.log(`📡 Notifying driver ${driverId} about trip cancellation`);
-                
+
+                // ✅ Set driver available again (client cancelled, not driver's fault)
+                await db.query(`
+                    UPDATE Chauffeur
+                    SET disponibilite = true
+                    WHERE id_chauffeur = $1
+                `, [driverId]);
+                console.log(`✅ Driver ${driverId} set back to available after client cancellation`);
+
                 // Import WebSocket service
                 const { notifyDriver } = require('../routes/websocket');
                 const notifyResult = await notifyDriver(driverId, 'trip_cancelled', {
                     tripId: actualCourseId,
-                    message: 'Course annulée par le client'
+                    message: 'Course annulée par le client',
+                    reason: 'client_cancelled'
                 });
-                
+
                 console.log(`📡 Notification result:`, notifyResult);
             } else {
                 console.log(`⚠️ No driver assigned to course ${actualCourseId} or driver ID is null`);

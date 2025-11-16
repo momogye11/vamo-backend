@@ -1113,17 +1113,50 @@ router.post('/', async (req, res) => {
 // Cancel a delivery (POST endpoint for frontend compatibility)
 router.post('/cancel', async (req, res) => {
     const { deliveryId } = req.body;
-    
+
     try {
         console.log(`❌ Cancelling delivery: ${deliveryId}`);
-        
-        // Update delivery status to cancelled
-        await pool.query(`
-            UPDATE Livraison 
-            SET etat_livraison = 'annulee' 
-            WHERE id_livraison = $1 AND etat_livraison = 'en_attente'
+
+        // Check if delivery driver is assigned
+        const deliveryQuery = await pool.query(`
+            SELECT id_livreur
+            FROM Livraison
+            WHERE id_livraison = $1
         `, [deliveryId]);
-        
+
+        // Update delivery status to cancelled (allow 'en_attente' or 'acceptee')
+        await pool.query(`
+            UPDATE Livraison
+            SET etat_livraison = 'annulee'
+            WHERE id_livraison = $1 AND etat_livraison IN ('en_attente', 'acceptee')
+        `, [deliveryId]);
+
+        // Notify delivery driver if there's one assigned and set driver available again
+        if (deliveryQuery.rowCount > 0 && deliveryQuery.rows[0].id_livreur) {
+            const livreurId = deliveryQuery.rows[0].id_livreur;
+            console.log(`📡 Notifying delivery driver ${livreurId} about delivery cancellation`);
+
+            // ✅ Set delivery driver available again (client cancelled, not driver's fault)
+            await pool.query(`
+                UPDATE Livreur
+                SET disponibilite = true
+                WHERE id_livreur = $1
+            `, [livreurId]);
+            console.log(`✅ Delivery driver ${livreurId} set back to available after client cancellation`);
+
+            // Notify delivery driver
+            try {
+                const { notifyDeliveryDriver } = require('../routes/websocket');
+                await notifyDeliveryDriver(livreurId, 'delivery_cancelled', {
+                    deliveryId: deliveryId,
+                    message: 'Livraison annulée par le client',
+                    reason: 'client_cancelled'
+                });
+            } catch (notifyError) {
+                console.error('❌ Error notifying delivery driver:', notifyError);
+            }
+        }
+
         // Remove from active searches if exists
         for (const [searchId, searchData] of activeDeliverySearches.entries()) {
             if (searchData.deliveryId === deliveryId) {
@@ -1132,14 +1165,14 @@ router.post('/cancel', async (req, res) => {
                 break;
             }
         }
-        
+
         console.log(`✅ Delivery cancelled: ${deliveryId}`);
-        
+
         res.json({
             success: true,
             message: 'Delivery cancelled successfully'
         });
-        
+
     } catch (err) {
         console.error("❌ Error cancelling delivery:", err);
         res.status(500).json({
