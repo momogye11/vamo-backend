@@ -1156,11 +1156,11 @@ router.post('/driver-cancel', async (req, res) => {
         const delivery = currentDelivery.rows[0];
         const clientId = delivery.id_client;
 
-        // ✨ Reset delivery to 'en_attente' to allow re-search, remove driver assignment
+        // ✅ Mark delivery as 'annulee' (cancelled by driver), KEEP driver ID for history
+        // Client will automatically start a NEW search which creates a NEW delivery
         await pool.query(`
             UPDATE Livraison
-            SET etat_livraison = 'en_attente',
-                id_livreur = NULL,
+            SET etat_livraison = 'annulee',
                 motif_annulation_livreur = $3
             WHERE id_livraison = $1 AND id_livreur = $2
         `, [livraisonId, deliveryId, reason || 'Non spécifié']);
@@ -1176,7 +1176,7 @@ router.post('/driver-cancel', async (req, res) => {
 
         await pool.query('COMMIT');
 
-        console.log(`✅ Delivery ${livraisonId} reset to 'en_attente' for automatic re-search`);
+        console.log(`✅ Delivery ${livraisonId} marked as 'annulee' - client will start new search automatically`);
 
         // 📡 Notify client about delivery driver cancellation
         try {

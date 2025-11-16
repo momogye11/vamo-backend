@@ -693,12 +693,11 @@ router.post('/driver-cancel', async (req, res) => {
         const trip = currentTrip.rows[0];
         const clientId = trip.id_client;
 
-        // ✨ Reset trip to 'en_attente' to allow re-search, remove driver assignment
-        // TODO: Add motif_annulation_chauffeur column to Course table to store cancellation reason
+        // ✅ Mark trip as 'annulee' (cancelled by driver), KEEP driver ID for history
+        // Client will automatically start a NEW search which creates a NEW trip
         await db.query(`
             UPDATE Course
-            SET etat_course = 'en_attente',
-                id_chauffeur = NULL
+            SET etat_course = 'annulee'
             WHERE id_course = $1 AND id_chauffeur = $2
         `, [tripId, driverId]);
 
@@ -713,7 +712,7 @@ router.post('/driver-cancel', async (req, res) => {
 
         await db.query('COMMIT');
 
-        console.log(`✅ Trip ${tripId} reset to 'en_attente' for automatic re-search`);
+        console.log(`✅ Trip ${tripId} marked as 'annulee' - client will start new search automatically`);
 
         // 🚫 Add driver to temporary blacklist for this client/route (10 minutes)
         // Blacklist is based on client + route, not just trip ID
