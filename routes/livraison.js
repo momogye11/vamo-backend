@@ -358,15 +358,42 @@ router.post('/search', async (req, res) => {
         try {
             console.log('📡 Broadcasting new delivery to all available delivery drivers...');
 
-            // Récupérer tous les livreurs disponibles
+            // Récupérer tous les livreurs disponibles (en excluant ceux blacklistés pour ce client/trajet)
             const availableDrivers = await pool.query(`
-                SELECT id_livreur, nom, prenom
-                FROM Livreur
-                WHERE disponibilite = true
-                AND statut_validation = 'approuve'
-            `);
+                SELECT l.id_livreur, l.nom, l.prenom
+                FROM Livreur l
+                WHERE l.disponibilite = true
+                AND l.statut_validation = 'approuve'
+                AND l.id_livreur NOT IN (
+                    SELECT b.id_livreur
+                    FROM LivreurBlacklistTemporaire b
+                    WHERE b.id_client = $1
+                    AND b.adresse_depart = $2
+                    AND b.adresse_arrivee = $3
+                    AND b.blacklist_jusqu_a > NOW()
+                )
+            `, [clientId || 1, originAddress, destinationAddress]);
 
-            console.log(`📊 Found ${availableDrivers.rowCount} available delivery drivers to notify`);
+            // Log des livreurs blacklistés pour ce trajet (pour debug)
+            const blacklistedDrivers = await pool.query(`
+                SELECT b.id_livreur, l.nom, l.prenom, b.blacklist_jusqu_a, b.raison, b.id_livraison
+                FROM LivreurBlacklistTemporaire b
+                JOIN Livreur l ON b.id_livreur = l.id_livreur
+                WHERE b.id_client = $1
+                AND b.adresse_depart = $2
+                AND b.adresse_arrivee = $3
+                AND b.blacklist_jusqu_a > NOW()
+            `, [clientId || 1, originAddress, destinationAddress]);
+
+            if (blacklistedDrivers.rowCount > 0) {
+                console.log(`🚫 ${blacklistedDrivers.rowCount} delivery driver(s) blacklisted for this route (client ${clientId || 1}):`);
+                blacklistedDrivers.rows.forEach(driver => {
+                    console.log(`   - Driver ${driver.id_livreur} (${driver.prenom} ${driver.nom}) until ${driver.blacklist_jusqu_a.toLocaleString('fr-FR')}`);
+                    console.log(`     Reason: ${driver.raison} (original delivery: ${driver.id_livraison})`);
+                });
+            }
+
+            console.log(`📊 Found ${availableDrivers.rowCount} available delivery drivers to notify (after blacklist filter)`);
 
             // 🚀 RÉCUPÉRER LES ARRÊTS INTERMÉDIAIRES pour la notification
             const stopsForNotification = await pool.query(`
@@ -1138,9 +1165,9 @@ router.post('/driver-cancel', async (req, res) => {
 
         await pool.query('BEGIN');
 
-        // Get current delivery info (including client phone for notification)
+        // Get current delivery info (including client ID and addresses for blacklist)
         const currentDelivery = await pool.query(`
-            SELECT etat_livraison, id_client, telephone_client
+            SELECT etat_livraison, id_client, telephone_client, adresse_depart, adresse_arrivee
             FROM Livraison
             WHERE id_livraison = $1 AND id_livreur = $2
         `, [livraisonId, deliveryId]);
@@ -1204,6 +1231,41 @@ router.post('/driver-cancel', async (req, res) => {
         } catch (notifyError) {
             console.error('❌ Error notifying client about delivery driver cancellation:', notifyError);
             // Don't fail the request if notification fails
+        }
+
+        // 🚫 Add delivery driver to temporary blacklist for this client/route (10 minutes)
+        // Blacklist is based on client + route, not just delivery ID
+        try {
+            const blacklistDuration = 10; // minutes
+            const blacklistUntil = new Date(Date.now() + blacklistDuration * 60 * 1000);
+
+            console.log(`📋 Blacklist data: driver=${deliveryId}, delivery=${livraisonId}, client=${delivery.id_client}, from="${delivery.adresse_depart}", to="${delivery.adresse_arrivee}"`);
+
+            await pool.query(`
+                INSERT INTO LivreurBlacklistTemporaire (
+                    id_livreur, id_livraison, id_client, adresse_depart, adresse_arrivee, blacklist_jusqu_a, raison
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                ON CONFLICT (id_livreur, id_livraison) DO UPDATE
+                SET blacklist_jusqu_a = EXCLUDED.blacklist_jusqu_a,
+                    raison = EXCLUDED.raison,
+                    id_client = EXCLUDED.id_client,
+                    adresse_depart = EXCLUDED.adresse_depart,
+                    adresse_arrivee = EXCLUDED.adresse_arrivee
+            `, [
+                deliveryId,
+                livraisonId,
+                delivery.id_client,
+                delivery.adresse_depart,
+                delivery.adresse_arrivee,
+                blacklistUntil,
+                reason || 'Annulation par le livreur'
+            ]);
+
+            console.log(`🚫 Delivery driver ${deliveryId} blacklisted for client ${delivery.id_client} route (${delivery.adresse_depart} → ${delivery.adresse_arrivee}) until ${blacklistUntil.toLocaleString('fr-FR')}`);
+        } catch (blacklistError) {
+            console.error('❌ Error adding delivery driver to blacklist:', blacklistError);
+            // Don't fail the request if blacklist fails
         }
 
         res.json({

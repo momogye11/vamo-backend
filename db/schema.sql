@@ -107,6 +107,24 @@ CREATE INDEX idx_blacklist_expiration ON ChauffeurBlacklistTemporaire(blacklist_
 CREATE INDEX idx_blacklist_course ON ChauffeurBlacklistTemporaire(id_course);
 CREATE INDEX idx_blacklist_client_trajet ON ChauffeurBlacklistTemporaire(id_chauffeur, id_client, blacklist_jusqu_a);
 
+-- Blacklist temporaire pour les livreurs (10 minutes après annulation)
+CREATE TABLE LivreurBlacklistTemporaire (
+    id_blacklist SERIAL PRIMARY KEY,
+    id_livreur INTEGER REFERENCES Livreur(id_livreur) ON DELETE CASCADE,
+    id_livraison INTEGER REFERENCES Livraison(id_livraison) ON DELETE CASCADE,
+    id_client INTEGER REFERENCES Client(id_client) ON DELETE CASCADE,
+    adresse_depart TEXT,
+    adresse_arrivee TEXT,
+    blacklist_jusqu_a TIMESTAMP NOT NULL,
+    raison TEXT DEFAULT 'Annulation par le livreur',
+    date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(id_livreur, id_livraison)
+);
+
+CREATE INDEX idx_livreur_blacklist_expiration ON LivreurBlacklistTemporaire(blacklist_jusqu_a);
+CREATE INDEX idx_livreur_blacklist_livraison ON LivreurBlacklistTemporaire(id_livraison);
+CREATE INDEX idx_livreur_blacklist_client_trajet ON LivreurBlacklistTemporaire(id_livreur, id_client, blacklist_jusqu_a);
+
 CREATE TABLE HistoriqueCourse (
     id_course INTEGER PRIMARY KEY,
     id_client INTEGER,

@@ -719,4 +719,266 @@ router.get('/livraisons/:id/arrets', authenticateAdmin, async (req, res) => {
     }
 });
 
+// ==========================================
+// GESTION DES COURSES BLOQUÉES
+// ==========================================
+
+// Récupérer toutes les courses bloquées pour analyse
+router.get('/stuck-courses', authenticateAdmin, async (req, res) => {
+    try {
+        console.log('📊 Récupération des courses bloquées...');
+
+        // Courses "en_cours" avec date_heure_arrivee (terminées physiquement mais pas marquées)
+        const enCoursQuery = `
+            SELECT
+                c.id_course,
+                c.etat_course,
+                c.date_heure_demande,
+                c.date_heure_depart,
+                c.date_heure_debut_course,
+                c.date_heure_arrivee,
+                c.adresse_depart,
+                c.adresse_arrivee,
+                c.montant,
+                ch.nom as chauffeur_nom,
+                ch.prenom as chauffeur_prenom,
+                ch.telephone as chauffeur_telephone,
+                cl.nom as client_nom,
+                cl.prenom as client_prenom,
+                EXTRACT(EPOCH FROM (NOW() - c.date_heure_arrivee))/3600 as heures_depuis_arrivee,
+                CASE
+                    WHEN c.date_heure_arrivee < c.date_heure_debut_course THEN 'ANOMALIE_TIMESTAMPS'
+                    WHEN EXTRACT(EPOCH FROM (NOW() - c.date_heure_arrivee))/3600 > 168 THEN 'TRES_ANCIENNE'
+                    WHEN EXTRACT(EPOCH FROM (NOW() - c.date_heure_arrivee))/3600 > 24 THEN 'ANCIENNE'
+                    ELSE 'RECENTE'
+                END as categorie
+            FROM Course c
+            LEFT JOIN Chauffeur ch ON c.id_chauffeur = ch.id_chauffeur
+            LEFT JOIN Client cl ON c.id_client = cl.id_client
+            WHERE c.etat_course = 'en_cours'
+            AND c.date_heure_arrivee IS NOT NULL
+            ORDER BY c.date_heure_arrivee DESC
+        `;
+
+        // Courses "en_attente" timeout
+        const enAttenteQuery = `
+            SELECT
+                c.id_course,
+                c.etat_course,
+                c.date_heure_demande,
+                c.adresse_depart,
+                c.adresse_arrivee,
+                c.montant,
+                cl.nom as client_nom,
+                cl.prenom as client_prenom,
+                EXTRACT(EPOCH FROM (NOW() - c.date_heure_demande))/60 as minutes_depuis_demande,
+                CASE
+                    WHEN EXTRACT(EPOCH FROM (NOW() - c.date_heure_demande))/60 > 60 THEN 'TIMEOUT_LONG'
+                    ELSE 'TIMEOUT_COURT'
+                END as categorie
+            FROM Course c
+            LEFT JOIN Client cl ON c.id_client = cl.id_client
+            WHERE c.etat_course = 'en_attente'
+            AND c.date_heure_demande < NOW() - INTERVAL '30 minutes'
+            ORDER BY c.date_heure_demande DESC
+        `;
+
+        // Courses "acceptee" qui ne démarrent pas
+        const accepteeQuery = `
+            SELECT
+                c.id_course,
+                c.etat_course,
+                c.date_heure_demande,
+                c.date_heure_depart,
+                c.adresse_depart,
+                c.adresse_arrivee,
+                c.montant,
+                ch.nom as chauffeur_nom,
+                ch.prenom as chauffeur_prenom,
+                ch.telephone as chauffeur_telephone,
+                cl.nom as client_nom,
+                cl.prenom as client_prenom,
+                EXTRACT(EPOCH FROM (NOW() - c.date_heure_depart))/60 as minutes_depuis_acceptation,
+                'ACCEPTEE_SANS_DEPART' as categorie
+            FROM Course c
+            LEFT JOIN Chauffeur ch ON c.id_chauffeur = ch.id_chauffeur
+            LEFT JOIN Client cl ON c.id_client = cl.id_client
+            WHERE c.etat_course = 'acceptee'
+            AND c.date_heure_depart IS NOT NULL
+            AND c.date_heure_debut_course IS NULL
+            AND c.date_heure_depart < NOW() - INTERVAL '15 minutes'
+            ORDER BY c.date_heure_depart DESC
+        `;
+
+        const [enCoursResults, enAttenteResults, accepteeResults] = await Promise.all([
+            db.query(enCoursQuery),
+            db.query(enAttenteQuery),
+            db.query(accepteeQuery)
+        ]);
+
+        res.json({
+            success: true,
+            stuckCourses: {
+                enCours: enCoursResults.rows,
+                enAttente: enAttenteResults.rows,
+                acceptee: accepteeResults.rows
+            },
+            summary: {
+                total: enCoursResults.rows.length + enAttenteResults.rows.length + accepteeResults.rows.length,
+                enCoursCount: enCoursResults.rows.length,
+                enAttenteCount: enAttenteResults.rows.length,
+                accepteeCount: accepteeResults.rows.length,
+                categories: {
+                    anomalies: enCoursResults.rows.filter(c => c.categorie === 'ANOMALIE_TIMESTAMPS').length,
+                    tresAnciennes: enCoursResults.rows.filter(c => c.categorie === 'TRES_ANCIENNE').length,
+                    anciennes: enCoursResults.rows.filter(c => c.categorie === 'ANCIENNE').length,
+                    recentes: enCoursResults.rows.filter(c => c.categorie === 'RECENTE').length
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Erreur récupération courses bloquées:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Erreur lors de la récupération des courses bloquées'
+        });
+    }
+});
+
+// Forcer la terminaison d'une course spécifique
+router.post('/force-complete-course/:id', authenticateAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        console.log(`🔧 Forçage terminaison course #${id}...`);
+
+        const result = await db.query(
+            `UPDATE Course
+             SET etat_course = 'terminee'
+             WHERE id_course = $1
+             RETURNING *`,
+            [id]
+        );
+
+        if (result.rows.length > 0) {
+            res.json({
+                success: true,
+                message: `Course #${id} marquée comme terminée`,
+                course: result.rows[0]
+            });
+        } else {
+            res.status(404).json({
+                success: false,
+                error: 'Course non trouvée'
+            });
+        }
+
+    } catch (error) {
+        console.error('❌ Erreur forçage terminaison:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Erreur lors du forçage de terminaison'
+        });
+    }
+});
+
+// Forcer l'annulation d'une course spécifique
+router.post('/force-cancel-course/:id', authenticateAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        console.log(`🔧 Forçage annulation course #${id}...`);
+
+        const result = await db.query(
+            `UPDATE Course
+             SET etat_course = 'annulee'
+             WHERE id_course = $1
+             RETURNING *`,
+            [id]
+        );
+
+        if (result.rows.length > 0) {
+            res.json({
+                success: true,
+                message: `Course #${id} annulée`,
+                course: result.rows[0]
+            });
+        } else {
+            res.status(404).json({
+                success: false,
+                error: 'Course non trouvée'
+            });
+        }
+
+    } catch (error) {
+        console.error('❌ Erreur forçage annulation:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Erreur lors du forçage d\'annulation'
+        });
+    }
+});
+
+// Nettoyage automatique des courses anciennes bloquées
+router.post('/cleanup-old-courses', authenticateAdmin, async (req, res) => {
+    try {
+        const { daysThreshold = 7 } = req.body;
+        console.log(`🧹 Nettoyage automatique des courses de plus de ${daysThreshold} jours...`);
+
+        // Marquer comme "terminee" les courses "en_cours" anciennes avec arrivée
+        const termineeResult = await db.query(
+            `UPDATE Course
+             SET etat_course = 'terminee'
+             WHERE etat_course = 'en_cours'
+             AND date_heure_arrivee IS NOT NULL
+             AND date_heure_arrivee < NOW() - INTERVAL '${daysThreshold} days'
+             RETURNING id_course`,
+            []
+        );
+
+        // Annuler les courses "en_attente" anciennes
+        const annuleeAttenteResult = await db.query(
+            `UPDATE Course
+             SET etat_course = 'annulee'
+             WHERE etat_course = 'en_attente'
+             AND date_heure_demande < NOW() - INTERVAL '${daysThreshold} days'
+             RETURNING id_course`,
+            []
+        );
+
+        // Annuler les courses "acceptee" anciennes sans départ
+        const annuleeAccepteeResult = await db.query(
+            `UPDATE Course
+             SET etat_course = 'annulee'
+             WHERE etat_course = 'acceptee'
+             AND date_heure_depart IS NOT NULL
+             AND date_heure_debut_course IS NULL
+             AND date_heure_depart < NOW() - INTERVAL '${daysThreshold} days'
+             RETURNING id_course`,
+            []
+        );
+
+        res.json({
+            success: true,
+            message: `Nettoyage terminé`,
+            cleaned: {
+                terminee: termineeResult.rows.length,
+                annuleeAttente: annuleeAttenteResult.rows.length,
+                annuleeAcceptee: annuleeAccepteeResult.rows.length,
+                total: termineeResult.rows.length + annuleeAttenteResult.rows.length + annuleeAccepteeResult.rows.length
+            },
+            courseIds: {
+                terminee: termineeResult.rows.map(r => r.id_course),
+                annulee: [...annuleeAttenteResult.rows, ...annuleeAccepteeResult.rows].map(r => r.id_course)
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Erreur nettoyage automatique:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Erreur lors du nettoyage automatique'
+        });
+    }
+});
+
 module.exports = router;
