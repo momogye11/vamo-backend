@@ -39,6 +39,81 @@ router.get('/', async (req, res) => {
     }
 });
 
+// 🆕 Get pending deliveries for a specific driver (for polling fallback)
+router.get('/pending/:driverId', async (req, res) => {
+    try {
+        const { driverId } = req.params;
+        console.log(`🔄 [POLLING] Fetching pending deliveries for driver ${driverId}`);
+
+        const pendingDeliveries = await pool.query(`
+            SELECT
+                l.id_livraison as id,
+                l.adresse_depart as pickup,
+                l.adresse_arrivee as destination,
+                l.distance_km as distance,
+                l.duree_estimee as duration,
+                l.tarif as price,
+                l.mode_paiement as paymentMethod,
+                l.taille_colis as colisSize,
+                l.type_livraison as deliveryType,
+                l.latitude_depart as pickup_lat,
+                l.longitude_depart as pickup_lng,
+                l.latitude_arrivee as destination_lat,
+                l.longitude_arrivee as destination_lng,
+                l.date_heure_depart as createdAt
+            FROM Livraison l
+            WHERE l.etat_livraison = 'en_attente'
+            AND l.date_heure_depart > NOW() - INTERVAL '10 minutes'
+            AND l.id_livreur IS NULL
+            ORDER BY l.date_heure_depart DESC
+        `);
+
+        if (pendingDeliveries.rowCount === 0) {
+            return res.json({
+                success: true,
+                deliveries: []
+            });
+        }
+
+        // Format les livraisons comme les notifications WebSocket
+        const formattedDeliveries = pendingDeliveries.rows.map(delivery => ({
+            id: delivery.id,
+            pickup: delivery.pickup,
+            destination: delivery.destination,
+            distance: `${delivery.distance} km`,
+            duration: delivery.duration,
+            price: parseInt(delivery.price),
+            paymentMethod: delivery.paymentMethod,
+            colisSize: delivery.colissize,
+            deliveryType: delivery.deliverytype,
+            intermediateStops: [],
+            pickupCoords: {
+                latitude: parseFloat(delivery.pickup_lat),
+                longitude: parseFloat(delivery.pickup_lng)
+            },
+            destinationCoords: {
+                latitude: parseFloat(delivery.destination_lat),
+                longitude: parseFloat(delivery.destination_lng)
+            },
+            createdAt: delivery.createdat
+        }));
+
+        console.log(`✅ Found ${formattedDeliveries.length} pending deliveries`);
+        res.json({
+            success: true,
+            deliveries: formattedDeliveries
+        });
+
+    } catch (err) {
+        console.error("❌ Error fetching pending deliveries:", err);
+        res.status(500).json({
+            success: false,
+            error: 'Error fetching pending deliveries',
+            message: err.message
+        });
+    }
+});
+
 // Utility function to calculate distance between two coordinates (Haversine formula)
 function calculateDistance(coord1, coord2) {
     const R = 6371; // Earth's radius in kilometers
