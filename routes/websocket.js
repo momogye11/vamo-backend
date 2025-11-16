@@ -203,7 +203,7 @@ function handleWebSocketMessage(ws, message) {
 }
 
 // Chauffeur se connecte et s'identifie
-function handleDriverConnect(ws, message) {
+async function handleDriverConnect(ws, message) {
     const { driverId, driverName } = message.data || message;
 
     if (!driverId) {
@@ -237,6 +237,93 @@ function handleDriverConnect(ws, message) {
             timestamp: new Date().toISOString()
         }
     }));
+
+    // 🆕 RESYNCHRONISATION : Envoyer toutes les courses en attente à ce chauffeur
+    try {
+        console.log(`🔄 Resyncing pending rides for driver ${driverId}...`);
+
+        const pendingRides = await db.query(`
+            SELECT c.*,
+                   ai.adresse as stop_address,
+                   ai.latitude as stop_lat,
+                   ai.longitude as stop_lng,
+                   ai.ordre_arret
+            FROM Course c
+            LEFT JOIN arrets_intermediaires ai ON c.id_course = ai.id_course
+            WHERE c.etat_course = 'en_attente'
+            AND c.date_heure_depart > NOW() - INTERVAL '10 minutes'
+            AND c.id_chauffeur IS NULL
+            AND c.id_client NOT IN (
+                SELECT b.id_client FROM ChauffeurBlacklistTemporaire b
+                WHERE b.id_chauffeur = $1
+                AND b.blacklist_jusqu_a > NOW()
+            )
+            ORDER BY c.id_course, ai.ordre_arret
+        `, [driverId]);
+
+        if (pendingRides.rowCount === 0) {
+            console.log(`✅ No pending rides to sync for driver ${driverId}`);
+            return;
+        }
+
+        // Grouper les courses avec leurs arrêts intermédiaires
+        const coursesMap = new Map();
+        pendingRides.rows.forEach(row => {
+            if (!coursesMap.has(row.id_course)) {
+                coursesMap.set(row.id_course, {
+                    id: row.id_course,
+                    pickup: row.adresse_depart,
+                    destination: row.adresse_arrivee,
+                    intermediateStops: [],
+                    distance: `${row.distance_km} km`,
+                    duration: `${row.duree_min} min`,
+                    price: row.prix,
+                    paymentMethod: row.mode_paiement,
+                    pickupCoords: {
+                        latitude: parseFloat(row.latitude_depart),
+                        longitude: parseFloat(row.longitude_depart)
+                    },
+                    destinationCoords: {
+                        latitude: parseFloat(row.latitude_arrivee),
+                        longitude: parseFloat(row.longitude_arrivee)
+                    }
+                });
+            }
+
+            // Ajouter les arrêts intermédiaires s'il y en a
+            if (row.stop_address) {
+                coursesMap.get(row.id_course).intermediateStops.push({
+                    description: row.stop_address,
+                    address: row.stop_address,
+                    latitude: parseFloat(row.stop_lat),
+                    longitude: parseFloat(row.stop_lng)
+                });
+            }
+        });
+
+        // Envoyer chaque course en attente au chauffeur
+        let sentCount = 0;
+        for (const [courseId, rideData] of coursesMap) {
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'ride-notification',
+                    data: {
+                        notificationType: 'new_ride',
+                        rideData: rideData,
+                        isResync: true // Indique que c'est une resynchronisation
+                    }
+                }));
+                sentCount++;
+                console.log(`📤 Resync: Sent pending ride ${courseId} to driver ${driverId}`);
+            }
+        }
+
+        console.log(`✅ Resync complete: Sent ${sentCount} pending ride(s) to driver ${driverId}`);
+
+    } catch (resyncError) {
+        console.error(`❌ Error resyncing pending rides for driver ${driverId}:`, resyncError);
+        // Ne pas bloquer la connexion si la resync échoue
+    }
 }
 
 // Gestion du ping
@@ -282,7 +369,7 @@ function handleDriverDisconnect(ws, message) {
 }
 
 // 🚚 FONCTIONS pour les livreurs
-function handleDeliveryDriverConnect(ws, message) {
+async function handleDeliveryDriverConnect(ws, message) {
     const { driverId, driverName } = message.data || message;
 
     if (!driverId) {
@@ -311,6 +398,64 @@ function handleDeliveryDriverConnect(ws, message) {
         message: 'Successfully connected to delivery driver service',
         timestamp: new Date().toISOString()
     }));
+
+    // 🆕 RESYNCHRONISATION : Envoyer toutes les livraisons en attente à ce livreur
+    try {
+        console.log(`🔄 Resyncing pending deliveries for livreur ${driverId}...`);
+
+        const pendingDeliveries = await db.query(`
+            SELECT l.*, tl.nom_type, tl.prix_base
+            FROM Livraison l
+            LEFT JOIN TypeLivraison tl ON l.id_type = tl.id_type
+            WHERE l.etat_livraison = 'en_attente'
+            AND l.date_heure_demande > NOW() - INTERVAL '10 minutes'
+            AND l.id_livreur IS NULL
+        `, []);
+
+        if (pendingDeliveries.rowCount === 0) {
+            console.log(`✅ No pending deliveries to sync for livreur ${driverId}`);
+            return;
+        }
+
+        // Envoyer chaque livraison en attente au livreur
+        let sentCount = 0;
+        for (const delivery of pendingDeliveries.rows) {
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'delivery-notification',
+                    data: {
+                        notificationType: 'new_delivery',
+                        deliveryData: {
+                            id: delivery.id_livraison,
+                            pickup: delivery.adresse_depart,
+                            destination: delivery.adresse_arrivee,
+                            distance: `${delivery.distance_km} km`,
+                            price: delivery.prix,
+                            paymentMethod: delivery.mode_paiement,
+                            deliveryType: delivery.nom_type,
+                            pickupCoords: {
+                                latitude: parseFloat(delivery.latitude_depart),
+                                longitude: parseFloat(delivery.longitude_depart)
+                            },
+                            destinationCoords: {
+                                latitude: parseFloat(delivery.latitude_arrivee),
+                                longitude: parseFloat(delivery.longitude_arrivee)
+                            }
+                        },
+                        isResync: true
+                    }
+                }));
+                sentCount++;
+                console.log(`📤 Resync: Sent pending delivery ${delivery.id_livraison} to livreur ${driverId}`);
+            }
+        }
+
+        console.log(`✅ Resync complete: Sent ${sentCount} pending delivery(ies) to livreur ${driverId}`);
+
+    } catch (resyncError) {
+        console.error(`❌ Error resyncing pending deliveries for livreur ${driverId}:`, resyncError);
+        // Ne pas bloquer la connexion si la resync échoue
+    }
 }
 
 function handleDeliveryDriverDisconnect(ws, message) {

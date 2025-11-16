@@ -620,11 +620,99 @@ router.get('/ride/:courseId', async (req, res) => {
     }
 });
 
+// 🆕 GET pending rides for a specific driver (HTTP fallback)
+router.get('/pending/:driverId', async (req, res) => {
+    const { driverId } = req.params;
+
+    try {
+        console.log(`🔍 [HTTP FALLBACK] Fetching pending rides for driver ${driverId}`);
+
+        if (!driverId) {
+            return res.status(400).json({
+                success: false,
+                error: 'Driver ID is required'
+            });
+        }
+
+        const pendingRides = await db.query(`
+            SELECT c.*,
+                   ai.adresse as stop_address,
+                   ai.latitude as stop_lat,
+                   ai.longitude as stop_lng,
+                   ai.ordre_arret
+            FROM Course c
+            LEFT JOIN arrets_intermediaires ai ON c.id_course = ai.id_course
+            WHERE c.etat_course = 'en_attente'
+            AND c.date_heure_depart > NOW() - INTERVAL '10 minutes'
+            AND c.id_chauffeur IS NULL
+            AND c.id_client NOT IN (
+                SELECT b.id_client FROM ChauffeurBlacklistTemporaire b
+                WHERE b.id_chauffeur = $1
+                AND b.blacklist_jusqu_a > NOW()
+            )
+            ORDER BY c.id_course, ai.ordre_arret
+        `, [driverId]);
+
+        // Grouper par course avec les arrêts intermédiaires
+        const coursesMap = new Map();
+        pendingRides.rows.forEach(row => {
+            if (!coursesMap.has(row.id_course)) {
+                coursesMap.set(row.id_course, {
+                    id: row.id_course,
+                    pickup: row.adresse_depart,
+                    destination: row.adresse_arrivee,
+                    intermediateStops: [],
+                    distance: `${row.distance_km} km`,
+                    duration: `${row.duree_min} min`,
+                    price: parseFloat(row.prix),
+                    paymentMethod: row.mode_paiement,
+                    pickupCoords: {
+                        latitude: parseFloat(row.latitude_depart),
+                        longitude: parseFloat(row.longitude_depart)
+                    },
+                    destinationCoords: {
+                        latitude: parseFloat(row.latitude_arrivee),
+                        longitude: parseFloat(row.longitude_arrivee)
+                    },
+                    createdAt: row.date_heure_depart
+                });
+            }
+
+            if (row.stop_address) {
+                coursesMap.get(row.id_course).intermediateStops.push({
+                    description: row.stop_address,
+                    address: row.stop_address,
+                    latitude: parseFloat(row.stop_lat),
+                    longitude: parseFloat(row.stop_lng)
+                });
+            }
+        });
+
+        const rides = Array.from(coursesMap.values());
+
+        console.log(`✅ [HTTP FALLBACK] Found ${rides.length} pending rides for driver ${driverId}`);
+
+        res.json({
+            success: true,
+            rides: rides,
+            count: rides.length,
+            timestamp: new Date().toISOString()
+        });
+
+    } catch (err) {
+        console.error("❌ [HTTP FALLBACK] Error fetching pending rides:", err);
+        res.status(500).json({
+            success: false,
+            error: 'Erreur serveur'
+        });
+    }
+});
+
 // Cleanup old searches periodically (run every 5 minutes)
 setInterval(() => {
     const now = new Date();
     const cutoffTime = 10 * 60 * 1000; // 10 minutes
-    
+
     for (const [searchId, searchData] of activeSearches.entries()) {
         if (now - searchData.startTime > cutoffTime) {
             console.log(`🧹 Cleaning up old search: ${searchId}`);
