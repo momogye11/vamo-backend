@@ -50,22 +50,20 @@ router.get('/pending/:driverId', async (req, res) => {
                 l.id_livraison as id,
                 l.adresse_depart as pickup,
                 l.adresse_arrivee as destination,
-                l.distance_km as distance,
-                l.duree_estimee as duration,
-                l.tarif as price,
-                l.mode_paiement as paymentMethod,
+                l.prix as price,
                 l.taille_colis as colisSize,
-                l.type_livraison as deliveryType,
                 l.latitude_depart as pickup_lat,
                 l.longitude_depart as pickup_lng,
                 l.latitude_arrivee as destination_lat,
                 l.longitude_arrivee as destination_lng,
-                l.date_heure_depart as createdAt
+                l.date_heure_depart as createdAt,
+                tl.nom as deliveryType
             FROM Livraison l
+            LEFT JOIN TypeLivraison tl ON l.id_type = tl.id_type
             WHERE l.etat_livraison = 'en_attente'
-            AND l.date_heure_depart > NOW() - INTERVAL '10 minutes'
             AND l.id_livreur IS NULL
-            ORDER BY l.date_heure_depart DESC
+            ORDER BY l.id_livraison DESC
+            LIMIT 50
         `);
 
         if (pendingDeliveries.rowCount === 0) {
@@ -80,12 +78,12 @@ router.get('/pending/:driverId', async (req, res) => {
             id: delivery.id,
             pickup: delivery.pickup,
             destination: delivery.destination,
-            distance: `${delivery.distance} km`,
-            duration: delivery.duration,
-            price: parseInt(delivery.price),
-            paymentMethod: delivery.paymentMethod,
+            distance: "N/A", // Distance non stockée dans la table
+            duration: "N/A", // Durée non stockée dans la table
+            price: parseInt(delivery.price || 0),
+            paymentMethod: "especes", // Par défaut
             colisSize: delivery.colissize,
-            deliveryType: delivery.deliverytype,
+            deliveryType: delivery.deliverytype || 'express',
             intermediateStops: [],
             pickupCoords: {
                 latitude: parseFloat(delivery.pickup_lat),
