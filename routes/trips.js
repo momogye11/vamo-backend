@@ -298,6 +298,22 @@ router.post('/accept', async (req, res) => {
             console.error('⚠️ Error notifying other drivers via WebSocket (trip still accepted):', notifyError.message);
         }
 
+        // 🎯 CRITICAL: Notifier le CLIENT que sa course a été acceptée
+        try {
+            console.log('📢 Notifying client that trip was accepted...');
+            const { notifyTripAccepted } = require('./websocket');
+
+            // Récupérer l'ID du client depuis la course
+            const clientId = trip.id_client;
+
+            if (clientId && driverData) {
+                console.log(`📲 Sending trip_accepted notification to client ${clientId}`);
+                notifyTripAccepted(clientId, tripId, driverData);
+            }
+        } catch (notifyError) {
+            console.error('⚠️ Error notifying client via WebSocket (trip still accepted):', notifyError.message);
+        }
+
         return res.json({
             success: true,
             message: 'Course acceptée avec succès',

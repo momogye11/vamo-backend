@@ -712,6 +712,55 @@ function notifyTripTaken(tripId, takenByDriverId) {
     console.log(`📊 Trip taken notification sent to ${notifiedCount} drivers`);
 }
 
+// 🎯 Fonction pour notifier le CLIENT que sa course a été acceptée
+function notifyTripAccepted(clientId, tripId, driverData) {
+    console.log(`📢 Notifying client ${clientId} that trip ${tripId} was accepted`);
+
+    const notification = {
+        type: 'trip_accepted',
+        data: {
+            tripId: tripId,
+            status: 'driver_found',
+            driver: {
+                id: driverData.id,
+                name: driverData.name,
+                firstName: driverData.firstName,
+                lastName: driverData.lastName,
+                phone: driverData.phone,
+                photo: driverData.photo,
+                rating: 4.5, // Default rating
+                vehicle: {
+                    make: driverData.vehicle.brand || 'Véhicule',
+                    model: driverData.vehicle.model || '',
+                    year: driverData.vehicle.year,
+                    licensePlate: driverData.vehicle.plate || 'Non spécifiée',
+                    color: driverData.vehicle.color || 'Noir'
+                },
+                currentPosition: driverData.currentPosition || null,
+                location: driverData.currentPosition || null,
+                eta: 'Calcul en cours...'
+            },
+            message: 'Un chauffeur a accepté votre course',
+            timestamp: new Date().toISOString()
+        }
+    };
+
+    // Envoyer au client spécifique
+    const clientIdString = clientId.toString();
+    const clientData = connectedClients.get(clientIdString);
+
+    if (clientData && clientData.ws && clientData.ws.readyState === WebSocket.OPEN) {
+        try {
+            clientData.ws.send(JSON.stringify(notification));
+            console.log(`✅ Trip accepted notification sent to client ${clientId}`);
+        } catch (error) {
+            console.error(`❌ Error notifying client ${clientId}:`, error.message);
+        }
+    } else {
+        console.warn(`⚠️ Client ${clientId} not connected via WebSocket`);
+    }
+}
+
 // Fonction pour notifier qu'une livraison a été prise
 function notifyDeliveryTaken(deliveryId, takenByDriverId) {
     console.log(`📢 Broadcasting delivery taken: ${deliveryId} by delivery driver ${takenByDriverId}`);
@@ -1372,6 +1421,7 @@ module.exports = {
     notifyDriver,
     getWebSocketConnections,
     notifyTripTaken,
+    notifyTripAccepted, // 🎯 NEW: Notify client when trip is accepted
     notifyDeliveryTaken,
     // 📍 Nouvelles fonctions pour le GPS temps réel
     setClientFollowingDriver,
